@@ -14,12 +14,13 @@ async function getJSON(url: string, timeoutMs = 10000): Promise<unknown> {
 export async function fetchLiveCrypto(symbols: string[]): Promise<Record<string, Quote>> {
   if (symbols.length === 0) return {};
   const list = symbols.map(s => `"${s}USDT"`).join(',');
-  const data = await getJSON(`https://api.binance.com/api/v3/ticker/24hr?symbols=[${list}]`) as { symbol: string; lastPrice: string; priceChangePercent: string }[];
+  const data = await getJSON(`https://api.binance.com/api/v3/ticker/24hr?symbols=[${list}]`) as { symbol: string; lastPrice: string; priceChangePercent: string; closeTime?: number }[];
   const out: Record<string, Quote> = {};
   for (const t of data) {
     out[t.symbol.replace('USDT', '')] = {
       price: parseFloat(t.lastPrice),
       change24h: parseFloat(t.priceChangePercent),
+      source: 'Binance', asOf: t.closeTime, receivedAt: Date.now(),
     };
   }
   return out;
@@ -30,7 +31,7 @@ export async function fetchLiveStock(symbol: string): Promise<Quote | null> {
   try {
     const target = encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1d&interval=5m`);
     const data = await getJSON(`https://api.allorigins.win/raw?url=${target}`, 12000) as {
-      chart?: { result?: { meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number } }[] }
+      chart?: { result?: { meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number; regularMarketTime?: number } }[] }
     };
     const meta = data.chart?.result?.[0]?.meta;
     if (!meta?.regularMarketPrice) return null;
@@ -38,6 +39,7 @@ export async function fetchLiveStock(symbol: string): Promise<Quote | null> {
     return {
       price: meta.regularMarketPrice,
       change24h: prev ? (meta.regularMarketPrice / prev - 1) * 100 : null,
+      source: 'Yahoo Finance', asOf: meta.regularMarketTime ? meta.regularMarketTime * 1000 : undefined, receivedAt: Date.now(),
     };
   } catch { return null; }
 }

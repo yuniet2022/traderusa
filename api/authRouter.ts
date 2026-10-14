@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { createRouter, publicQuery } from "./middleware";
 import { getDb } from "./queries/connection";
 import { users, accessCodes } from "@db/schema";
+import { loginLimiter } from './loginLimiter';
 import {
   hashPassword,
   verifyPassword,
@@ -63,37 +64,40 @@ export const authRouter = createRouter({
   /** Registro CERRADO: solo con un código de acceso válido y sin usar. */
   register: publicQuery.input(registration).mutation(async ({ ctx, input }) => {
     const db = getDb();
-    const code = await db.query.accessCodes.findFirst({
-      where: eq(accessCodes.code, input.accessCode.toUpperCase()),
+    const passHash = hashPassword(input.password);
+    const created = await db.transaction(async tx => {
+      // Lock the code until both user creation and code consumption commit.
+      const [code] = await tx.select().from(accessCodes)
+        .where(eq(accessCodes.code, input.accessCode.toUpperCase())).limit(1).for('update');
+      if (!code || code.revoked === 1 || code.usedBy !== null) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Código de acceso inválido o ya utilizado' });
+      }
+      const existing = await tx.query.users.findFirst({ where: eq(users.username, input.username) });
+      if (existing) throw new TRPCError({ code: 'CONFLICT', message: 'Ese nombre de usuario ya existe' });
+      const inserted = await tx.insert(users).values({
+        username: input.username, passHash, displayName: input.username,
+        expiresAt: new Date(Date.now() + code.days * 86400000),
+      });
+      const uid = Number(inserted[0].insertId);
+      await tx.update(accessCodes).set({ usedBy: input.username, usedAt: new Date() }).where(eq(accessCodes.id, code.id));
+      const user = await tx.query.users.findFirst({ where: eq(users.id, uid) });
+      if (!user) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR' });
+      return user;
     });
-    if (!code || code.revoked === 1 || code.usedBy) {
-      throw new Error("Código de acceso inválido o ya utilizado");
-    }
-    const existing = await db.query.users.findFirst({ where: eq(users.username, input.username) });
-    if (existing) throw new Error("Ese nombre de usuario ya existe");
-
-    const expiresAt = new Date(Date.now() + code.days * 86400000);
-    const inserted = await db.insert(users).values({
-      username: input.username,
-      passHash: hashPassword(input.password),
-      displayName: input.username,
-      expiresAt,
-    });
-    const uid = Number(inserted[0].insertId);
-    await db.update(accessCodes)
-      .set({ usedBy: input.username, usedAt: new Date() })
-      .where(eq(accessCodes.id, code.id));
-
-    ctx.resHeaders.append("Set-Cookie", sessionCookieHeader(createSessionToken(uid, input.username)));
-    const created = await db.query.users.findFirst({ where: eq(users.id, uid) });
-    return toClientUser(created!);
+    ctx.resHeaders.append("Set-Cookie", sessionCookieHeader(createSessionToken(created.id, input.username)));
+    return toClientUser(created);
   }),
 
   login: publicQuery.input(credentials).mutation(async ({ ctx, input }) => {
+    const attempt = loginLimiter.consume(input.username);
+    if (!attempt.allowed) {
+      ctx.resHeaders.set('Retry-After', String(attempt.retryAfterSeconds));
+      throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Demasiados intentos de acceso. Intenta de nuevo más tarde.' });
+    }
     const db = getDb();
     const user = await db.query.users.findFirst({ where: eq(users.username, input.username) });
     if (!user || !verifyPassword(input.password, user.passHash)) {
-      throw new Error("Usuario o contraseña incorrectos");
+      throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Usuario o contraseña incorrectos' });
     }
     assertActive(user);
     await db.update(users).set({ lastSignInAt: new Date() }).where(eq(users.id, user.id));

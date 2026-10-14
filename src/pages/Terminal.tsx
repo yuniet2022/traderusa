@@ -16,9 +16,12 @@ import type { Asset, AssetAnalysis } from '@/types';
 import { Radar, BookOpen, LayoutDashboard, LogOut } from 'lucide-react';
 
 export default function Terminal({ user }: { user: SessionUser }) {
-  const { analyses, loading, liveCount, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition } = useMarketData(user.id);
+  const { analyses, loading, quoteCount, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition } = useMarketData(user.id);
   const { logout } = useAuth();
   const [selected, setSelected] = useState<AssetAnalysis | null>(null);
+  const selectedAnalysis = selected
+    ? analyses.find(a => a.asset.id === selected.asset.id && a.asset.assetClass === selected.asset.assetClass) ?? selected
+    : null;
 
   // pedir permiso de notificaciones al abrir para las alertas automáticas
   useEffect(() => {
@@ -83,7 +86,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
-                <span className="text-[11px] text-zinc-400">datos reales en vivo</span>
+                <span className="text-[11px] text-zinc-400">consulta cada 30 s</span>
               </div>
               <span className="text-[10px] text-zinc-600">alertas automáticas activadas</span>
             </div>
@@ -109,7 +112,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
         <Tabs defaultValue="dashboard">
           <TabsList className="mb-5">
             <TabsTrigger value="dashboard" className="gap-1.5">
-              <LayoutDashboard size={14} /> Señales en vivo
+              <LayoutDashboard size={14} /> Señales
             </TabsTrigger>
             <TabsTrigger value="research" className="gap-1.5">
               <BookOpen size={14} /> Investigación
@@ -120,7 +123,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
               analyses={analyses}
               positions={portfolio}
               loading={loading}
-              liveCount={liveCount}
+              quoteCount={quoteCount}
               updatedAt={updatedAt}
               onSelect={setSelected}
               onRefresh={refresh}
@@ -141,7 +144,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
       </footer>
 
       <AssetDetail
-        analysis={selected}
+        analysis={selectedAnalysis}
         onClose={() => setSelected(null)}
         inPortfolio={selected ? portfolio.some(p => p.assetId === selected.asset.id) : false}
         onTogglePortfolio={handleTogglePortfolio}

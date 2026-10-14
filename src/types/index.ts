@@ -76,11 +76,26 @@ export interface AssetAnalysis {
   timing: { factor: number; note: string; block: boolean };
   levels: TradeLevels;
   regime: 'Tendencia' | 'Rango' | 'Mixto';
-  dataSource: 'live';
+  dataSource: 'quote' | 'historical' | 'cached';
+  priceSource: string;
+  priceAsOf: number | null; // provider timestamp, milliseconds; unknown is not receipt time
+  quoteReceivedAt: number | null;
+  historyAsOf: number; // timestamp of the latest historical daily bar
+  historySource: string;
   updatedAt: number;
 }
 
 export interface Quote {
   price: number;
   change24h: number | null;
+  source?: string;
+  asOf?: number;
+  receivedAt?: number;
+  cached?: boolean;
+}
+
+export interface CandleHistory {
+  candles: Candle[];
+  source: string;
+  cached: boolean;
 }

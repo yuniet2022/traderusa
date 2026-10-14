@@ -3,11 +3,11 @@ import {
   sma, ema, rsi, macd, bollinger, atr, adxProxy, pctReturn, zscore, high52w, last,
 } from './indicators';
 
-export function buildSnapshot(candles: Candle[]): IndicatorSnapshot {
+export function buildSnapshot(candles: Candle[], periodsPerYear = 252): IndicatorSnapshot {
   const closes = candles.map(c => c.close);
   const m = macd(closes);
   const bb = bollinger(closes);
-  const hi = high52w(closes);
+  const hi = high52w(closes, periodsPerYear);
   const price = closes[closes.length - 1];
   return {
     rsi14: last(rsi(closes)),
@@ -28,10 +28,10 @@ export function buildSnapshot(candles: Candle[]): IndicatorSnapshot {
     })(),
     atr14: last(atr(candles)),
     zscore20: zscore(closes),
-    ret1m: pctReturn(closes, 21),
-    ret3m: pctReturn(closes, 63),
-    ret6m: pctReturn(closes, 126),
-    ret12m: pctReturn(closes, 252),
+    ret1m: pctReturn(closes, Math.round(periodsPerYear / 12)),
+    ret3m: pctReturn(closes, Math.round(periodsPerYear / 4)),
+    ret6m: pctReturn(closes, Math.round(periodsPerYear / 2)),
+    ret12m: pctReturn(closes, periodsPerYear),
     distHigh52w: (price / hi - 1) * 100,
     adxProxy: adxProxy(candles),
     lastPrice: price,
@@ -58,19 +58,19 @@ export function runStrategies(s: IndicatorSnapshot): StrategyVote[] {
     const reasons: string[] = [];
     if (s.sma200 > 0) {
       if (s.lastPrice > s.sma200) { score += 35; reasons.push('precio sobre SMA200'); }
-      else { score -= 35; reasons.push('precio bajo SMA200'); }
+      else if (s.lastPrice < s.sma200) { score -= 35; reasons.push('precio bajo SMA200'); }
       if (s.sma50 > s.sma200) { score += 35; reasons.push('cruce dorado (SMA50>SMA200)'); }
-      else { score -= 35; reasons.push('cruce de la muerte (SMA50<SMA200)'); }
+      else if (s.sma50 < s.sma200) { score -= 35; reasons.push('cruce de la muerte (SMA50<SMA200)'); }
       if (s.sma20 > s.sma50) { score += 30; reasons.push('SMA20>SMA50'); }
-      else { score -= 30; reasons.push('SMA20<SMA50'); }
+      else if (s.sma20 < s.sma50) { score -= 30; reasons.push('SMA20<SMA50'); }
     } else if (s.sma50 > 0) {
-      score = s.lastPrice > s.sma50 ? 40 : -40;
-      reasons.push(s.lastPrice > s.sma50 ? 'precio sobre SMA50' : 'precio bajo SMA50');
+      score = s.lastPrice > s.sma50 ? 40 : s.lastPrice < s.sma50 ? -40 : 0;
+      reasons.push(s.lastPrice > s.sma50 ? 'precio sobre SMA50' : s.lastPrice < s.sma50 ? 'precio bajo SMA50' : 'precio en SMA50');
     }
     votes.push({
       strategyId: 'trend', strategyName: 'Trend Following (SMA 20/50/200)', family: 'Tendencia',
       score: clamp(score), signal: signalFromScore(score),
-      reason: reasons.join(' · ') || 'datos insuficientes',
+      reason: reasons.join(' · ') || (s.sma50 > 0 ? 'medias y precio sin dirección' : 'datos insuficientes'),
     });
   }
 
@@ -84,12 +84,12 @@ export function runStrategies(s: IndicatorSnapshot): StrategyVote[] {
     });
   }
 
-  // 3) Cross-sectional style momentum 3-6m (Jegadeesh-Titman), blended 3m/6m skipping last month
+  // 3) Absolute 3/6-month returns. This does not rank peers or skip the latest month.
   {
     const blended = 0.5 * s.ret3m + 0.5 * s.ret6m;
     const score = clamp(blended * 2.0);
     votes.push({
-      strategyId: 'csmom', strategyName: 'Momentum relativo 3-6 meses', family: 'Momentum',
+      strategyId: 'csmom', strategyName: 'Momentum absoluto 3-6 meses', family: 'Momentum',
       score, signal: signalFromScore(score),
       reason: `3m: ${s.ret3m.toFixed(1)}% · 6m: ${s.ret6m.toFixed(1)}%`,
     });
@@ -97,7 +97,8 @@ export function runStrategies(s: IndicatorSnapshot): StrategyVote[] {
 
   // 4) 52-week high proximity (George & Hwang)
   {
-    const score = clamp(50 + s.distHigh52w * 2.5 - 50); // near high -> positive
+    // Heuristic: +50 at the high, 0 at 20% below it. Not a calibrated return forecast.
+    const score = clamp(50 + s.distHigh52w * 2.5);
     votes.push({
       strategyId: 'high52', strategyName: 'Proximidad a máximo 52 semanas', family: 'Momentum',
       score, signal: signalFromScore(score),
@@ -178,7 +179,7 @@ export function detectRegime(s: IndicatorSnapshot): 'Tendencia' | 'Rango' | 'Mix
  * Regla de veto anti-pico: detecta movimientos verticales extendidos.
  * 0 = normal · 1 = extendido (nunca COMPRA FUERTE) · 2 = pico extremo (bloquea la compra por completo)
  * Un activo con RSI≥80, precio fuera de las bandas de Bollinger y a 3+ ATR de su SMA20
- * es estadísticamente el peor momento de entrada, aunque la tendencia sea alcista.
+ * activa un filtro heurístico de extensión, aunque la tendencia sea alcista.
  */
 export function detectExtension(s: IndicatorSnapshot): 0 | 1 | 2 {
   const norm = s.atr14 > 0 ? s.atr14 : Math.abs(s.lastPrice) * 0.02;

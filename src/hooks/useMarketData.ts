@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Asset, AssetAnalysis, Quote } from '@/types';
 import { WATCHLIST, loadCandles, loadQuotes } from '@/lib/data';
 import { fetchLiveCrypto, fetchLiveStocks } from '@/lib/live';
-import { buildSnapshot, runStrategies, detectRegime, compositeScore, signalFromScore, detectExtension, entryTiming } from '@/lib/strategies';
-import { computeLevels } from '@/lib/levels';
+import { buildAssetAnalysis, repriceAnalysis } from '@/lib/analysis';
 import {
   type AlertRule, type AlertKind, loadAlerts, saveAlerts, makeAlert, checkAlerts, alertLabel,
   ensureNotifyPermission, fireNotification,
@@ -19,64 +18,48 @@ function loadCustomAssets(): Asset[] {
   catch { return []; }
 }
 
-async function analyzeAsset(asset: Asset, quotes: Record<string, Quote>): Promise<AssetAnalysis | null> {
-  const { candles, source } = await loadCandles(asset);
-  const q = quotes[asset.id];
-  // usar el precio en vivo como última vela para que la señal refleje el mercado actual
-  if (q && candles.length > 0) {
-    const lastC = candles[candles.length - 1];
-    candles[candles.length - 1] = {
-      ...lastC,
-      close: q.price,
-      high: Math.max(lastC.high, q.price),
-      low: Math.min(lastC.low, q.price),
-    };
+async function analyzeAsset(asset: Asset, quotes: Record<string, Quote>, previous?: AssetAnalysis): Promise<AssetAnalysis | null> {
+  const history = await loadCandles(asset);
+  let quote = quotes[`${asset.assetClass}:${asset.id}`];
+  if (previous?.quoteReceivedAt && (!quote || !Number.isFinite(quote.price) || quote.price <= 0
+    || (quote.asOf && previous.priceAsOf && quote.asOf < previous.priceAsOf))) {
+    // Preserve the last known quote if a history refresh cannot obtain a newer one.
+    quote = { price: previous.price, change24h: previous.change24h, source: previous.priceSource,
+      asOf: previous.priceAsOf ?? undefined, receivedAt: previous.quoteReceivedAt, cached: true };
   }
-  const ind = buildSnapshot(candles);
-  const votes = runStrategies(ind);
-  const regime = detectRegime(ind);
-  const raw = compositeScore(votes, regime);
-  const extension = detectExtension(ind);
-  const timing = entryTiming(ind);
-  // regla de veto: un pico vertical jamás puede ser compra
-  let composite = raw;
-  if (extension === 2) composite = Math.min(raw, 19);
-  else if (extension === 1) composite = Math.min(raw, 45);
-  // timing de entrada: si la señal es de compra pero el precio está extendido, reducir
-  if (composite > 0) composite = composite * timing.factor;
-  // REGLA DURA: si el timing está bloqueado (precio extendido), una compra pasa a NEUTRAL
-  if (timing.block && composite > 0) composite = Math.min(composite, 19);
-  const n = candles.length;
-  const derivedChange = n >= 2 && candles[n - 2].close > 0
-    ? (candles[n - 1].close / candles[n - 2].close - 1) * 100
-    : null;
-  const signal = signalFromScore(composite);
-  return {
-    asset,
-    price: q?.price ?? ind.lastPrice,
-    change24h: q?.change24h ?? derivedChange,
-    candles,
-    indicators: ind,
-    votes,
-    composite,
-    signal,
-    extension,
-    timing,
-    levels: computeLevels(ind, composite),
-    regime,
-    dataSource: source,
-    updatedAt: Date.now(),
-  };
+  return buildAssetAnalysis(asset, history, quote);
+}
+
+function notifySignalChanges(previous: AssetAnalysis[], next: AssetAnalysis[]) {
+  const prevMap = new Map(previous.map(a => [`${a.asset.assetClass}:${a.asset.id}`, a.signal]));
+  for (const a of next) {
+    const prev = prevMap.get(`${a.asset.assetClass}:${a.asset.id}`);
+    if (!prev || prev === a.signal) continue;
+    const isBuy = a.signal === 'COMPRA' || a.signal === 'COMPRA FUERTE';
+    const isSell = a.signal === 'VENTA' || a.signal === 'VENTA FUERTE';
+    const wasBuy = prev === 'COMPRA' || prev === 'COMPRA FUERTE';
+    const wasSell = prev === 'VENTA' || prev === 'VENTA FUERTE';
+    let msg: string | null = null;
+    if (isBuy && !wasBuy) msg = `🟢 ${a.asset.symbol}: nueva señal de ${a.signal} (score ${a.composite.toFixed(0)})`;
+    else if (isSell && !wasSell) msg = `🔴 ${a.asset.symbol}: nueva señal de ${a.signal} (score ${a.composite.toFixed(0)})`;
+    else if (!isBuy && wasBuy) msg = `⚪ ${a.asset.symbol}: la señal de compra se desactivó (ahora ${a.signal})`;
+    else if (!isSell && wasSell) msg = `⚪ ${a.asset.symbol}: la señal de venta se desactivó (ahora ${a.signal})`;
+    if (msg) {
+      toast(msg, { duration: 12000 });
+      fireNotification('TradeRadar', msg);
+    }
+  }
 }
 
 export function useMarketData(userId: number | null) {
   const [analyses, setAnalyses] = useState<AssetAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
-  const [liveCount, setLiveCount] = useState(0);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [alerts, setAlerts] = useState<AlertRule[]>(() => loadAlerts());
   const [portfolio, setPortfolio] = useState<Position[]>(() => loadPortfolio());
   const busy = useRef(false);
+  const tickBusy = useRef(false);
+  const refreshVersion = useRef(0);
   const analysesRef = useRef<AssetAnalysis[]>([]);
   analysesRef.current = analyses;
   const alertsRef = useRef<AlertRule[]>(alerts);
@@ -143,43 +126,25 @@ export function useMarketData(userId: number | null) {
   const refresh = useCallback(async () => {
     if (busy.current) return;
     busy.current = true;
+    refreshVersion.current++;
     setLoading(true);
     try {
       const all = [...WATCHLIST, ...loadCustomAssets()];
       const quotes = await loadQuotes(all).catch(() => ({} as Record<string, Quote>));
       const results: AssetAnalysis[] = [];
-      let live = 0;
       for (const asset of all) {
         try {
-          const a = await analyzeAsset(asset, quotes);
+          const previous = analysesRef.current.find(a => a.asset.id === asset.id && a.asset.assetClass === asset.assetClass);
+          const a = await analyzeAsset(asset, quotes, previous);
           if (a) {
-            live++;
             results.push(a);
           }
         } catch { /* sin datos reales → no se muestra, jamás se inventa */ }
       }
       results.sort((a, b) => b.composite - a.composite);
-      // ALERTAS AUTOMÁTICAS: notificar cuando un activo cambia a compra/venta o sale de ella
-      const prevMap = new Map(analysesRef.current.map(a => [a.asset.id, a.signal]));
-      for (const a of results) {
-        const prev = prevMap.get(a.asset.id);
-        if (!prev || prev === a.signal) continue;
-        const isBuy = a.signal === 'COMPRA' || a.signal === 'COMPRA FUERTE';
-        const isSell = a.signal === 'VENTA' || a.signal === 'VENTA FUERTE';
-        const wasBuy = prev === 'COMPRA' || prev === 'COMPRA FUERTE';
-        const wasSell = prev === 'VENTA' || prev === 'VENTA FUERTE';
-        let msg: string | null = null;
-        if (isBuy && !wasBuy) msg = `🟢 ${a.asset.symbol}: nueva señal de ${a.signal} (score ${a.composite.toFixed(0)})`;
-        else if (isSell && !wasSell) msg = `🔴 ${a.asset.symbol}: nueva señal de ${a.signal} (score ${a.composite.toFixed(0)})`;
-        else if (!isBuy && wasBuy) msg = `⚪ ${a.asset.symbol}: la señal de compra se desactivó (ahora ${a.signal})`;
-        else if (!isSell && wasSell) msg = `⚪ ${a.asset.symbol}: la señal de venta se desactivó (ahora ${a.signal})`;
-        if (msg) {
-          toast(msg, { duration: 12000 });
-          fireNotification('TradeRadar', msg);
-        }
-      }
+      notifySignalChanges(analysesRef.current, results);
+      analysesRef.current = results;
       setAnalyses(results);
-      setLiveCount(live);
       setUpdatedAt(Date.now());
       // alertas personalizadas de señal
       const prices: Record<string, number> = {};
@@ -192,29 +157,35 @@ export function useMarketData(userId: number | null) {
     }
   }, [handleFiredAlerts]);
 
-  /* Ticks de precio en vivo: cripto cada 30s, acciones cada 60s */
+  /* Cotizaciones: consulta cada 30s, con posible retraso del proveedor. */
   const tick = useCallback(async () => {
-    const current = analysesRef.current;
-    if (current.length === 0) return;
-    const cryptoIds = current.filter(a => a.asset.assetClass === 'crypto').map(a => a.asset.id);
-    const stockIds = current.filter(a => a.asset.assetClass === 'stock').map(a => a.asset.id);
-    const quotes: Record<string, Quote> = {};
-    const [cr, sr] = await Promise.allSettled([
-      fetchLiveCrypto(cryptoIds),
-      fetchLiveStocks(stockIds),
-    ]);
-    if (cr.status === 'fulfilled') Object.assign(quotes, cr.value);
-    if (sr.status === 'fulfilled') Object.assign(quotes, sr.value);
-    if (Object.keys(quotes).length === 0) return;
-
-    setAnalyses(prev => prev.map(a => {
-      const q = quotes[a.asset.id];
-      return q ? { ...a, price: q.price, change24h: q.change24h ?? a.change24h } : a;
-    }));
-    // alertas de precio
-    const prices: Record<string, number> = {};
-    for (const [k, v] of Object.entries(quotes)) prices[k] = v.price;
-    handleFiredAlerts(checkAlerts(alertsRef.current.map(x => ({ ...x })), prices, {}));
+    if (busy.current || tickBusy.current) return;
+    tickBusy.current = true;
+    const version = refreshVersion.current;
+    try {
+      const current = analysesRef.current;
+      if (current.length === 0) return;
+      const cryptoIds = current.filter(a => a.asset.assetClass === 'crypto').map(a => a.asset.id);
+      const stockIds = current.filter(a => a.asset.assetClass === 'stock').map(a => a.asset.id);
+      const [cr, sr] = await Promise.allSettled([fetchLiveCrypto(cryptoIds), fetchLiveStocks(stockIds)]);
+      if (busy.current || refreshVersion.current !== version) return;
+      const crypto = cr.status === 'fulfilled' ? cr.value : {};
+      const stocks = sr.status === 'fulfilled' ? sr.value : {};
+      const previous = analysesRef.current;
+      const next = previous.map(a => repriceAnalysis(a, (a.asset.assetClass === 'crypto' ? crypto : stocks)[a.asset.id]));
+      if (!next.some((a, i) => a !== previous[i])) return;
+      next.sort((a, b) => b.composite - a.composite);
+      notifySignalChanges(previous, next);
+      analysesRef.current = next;
+      setAnalyses(next);
+      setUpdatedAt(Date.now());
+      const prices: Record<string, number> = {};
+      const signals: Record<string, AssetAnalysis['signal']> = {};
+      for (const a of next) { prices[a.asset.id] = a.price; signals[a.asset.id] = a.signal; }
+      handleFiredAlerts(checkAlerts(alertsRef.current.map(x => ({ ...x })), prices, signals));
+    } finally {
+      tickBusy.current = false;
+    }
   }, [handleFiredAlerts]);
 
   useEffect(() => {
@@ -226,10 +197,10 @@ export function useMarketData(userId: number | null) {
 
   const addAsset = useCallback(async (asset: Asset): Promise<AssetAnalysis | null> => {
     const exists = analysesRef.current.some(a => a.asset.id === asset.id && a.asset.assetClass === asset.assetClass);
-    if (exists) return analysesRef.current.find(a => a.asset.id === asset.id) ?? null;
+    if (exists) return analysesRef.current.find(a => a.asset.id === asset.id && a.asset.assetClass === asset.assetClass) ?? null;
     // guardar en personalizados
     const custom = loadCustomAssets();
-    if (!custom.some(c => c.id === asset.id)) {
+    if (!custom.some(c => c.id === asset.id && c.assetClass === asset.assetClass)) {
       try { localStorage.setItem(CUSTOM_KEY, JSON.stringify([...custom, asset])); } catch { /* ignore */ }
     }
     try {
@@ -287,5 +258,5 @@ export function useMarketData(userId: number | null) {
     if (userId && target) removeAlertMut.mutate({ assetId: target.assetId, kind: target.kind });
   }, [userId, removeAlertMut.mutate]);
 
-  return { analyses, loading, liveCount, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition };
+  return { analyses, loading, quoteCount: analyses.filter(a => a.dataSource === 'quote').length, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition };
 }

@@ -1,4 +1,5 @@
-import type { Asset, Candle, Quote } from '@/types';
+import type { Asset, Candle, Quote, CandleHistory } from '@/types';
+import { fetchLiveStocks } from './live';
 
 export const WATCHLIST: Asset[] = [
   // Acciones populares en Robinhood
@@ -138,45 +139,60 @@ async function cryptoCandlesPaprika(symbol: string): Promise<Candle[]> {
   }));
 }
 
-export async function fetchCryptoCandles(symbol: string): Promise<Candle[]> {
-  const key = `crc:${symbol}`;
-  const cached = cacheGet<Candle[]>(key);
-  if (cached) return cached;
-  const providers = [cryptoCandlesBinance, cryptoCandlesCoinGecko, cryptoCandlesPaprika];
+async function fetchCryptoHistory(symbol: string): Promise<CandleHistory> {
+  const key = `crc:v2:${symbol}`;
+  const cached = cacheGet<CandleHistory>(key);
+  if (cached) return { ...cached, cached: true };
+  const providers = [
+    { name: 'Binance', fetch: cryptoCandlesBinance },
+    { name: 'CoinGecko', fetch: cryptoCandlesCoinGecko },
+    { name: 'CoinPaprika', fetch: cryptoCandlesPaprika },
+  ];
   let lastErr: unknown = null;
   for (const p of providers) {
     try {
-      const candles = await p(symbol);
-      if (candles.length >= 60) { cacheSet(key, candles); return candles; }
+      const candles = await p.fetch(symbol);
+      if (candles.length >= 60) {
+        const history = { candles, source: p.name, cached: false };
+        cacheSet(key, history); return history;
+      }
     } catch (e) { lastErr = e; }
   }
   throw lastErr ?? new Error('sin proveedores de cripto');
 }
 
+export async function fetchCryptoCandles(symbol: string): Promise<Candle[]> {
+  return (await fetchCryptoHistory(symbol)).candles;
+}
+
 export async function fetchCryptoQuotes(symbols: string[]): Promise<Record<string, Quote>> {
-  const key = `crq:${symbols.join(',')}`;
+  const key = `crq:v2:${symbols.join(',')}`;
   const cached = cacheGet<Record<string, Quote>>(key);
-  if (cached) return cached;
+  if (cached) return Object.fromEntries(Object.entries(cached).map(([id, quote]) => [id, { ...quote, cached: true }]));
   // Binance: una sola llamada para todos
   try {
     const list = symbols.map(s => `"${s}USDT"`).join(',');
-    const data = await getJSON(`https://api.binance.com/api/v3/ticker/24hr?symbols=[${list}]`) as { symbol: string; lastPrice: string; priceChangePercent: string }[];
+    const data = await getJSON(`https://api.binance.com/api/v3/ticker/24hr?symbols=[${list}]`) as { symbol: string; lastPrice: string; priceChangePercent: string; closeTime?: number }[];
     const out: Record<string, Quote> = {};
     for (const t of data) {
       out[t.symbol.replace('USDT', '')] = {
         price: parseFloat(t.lastPrice),
         change24h: parseFloat(t.priceChangePercent),
+        source: 'Binance', asOf: t.closeTime, receivedAt: Date.now(),
       };
     }
     if (Object.keys(out).length > 0) { cacheSet(key, out); return out; }
   } catch { /* siguiente proveedor */ }
   // CoinGecko fallback
   const ids = symbols.map(s => CG_IDS[s]).filter(Boolean);
-  const data = await getJSON(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(',')}&price_change_percentage=24h`) as { id: string; current_price: number; price_change_percentage_24h: number | null }[];
+  const data = await getJSON(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(',')}&price_change_percentage=24h`) as { id: string; current_price: number; price_change_percentage_24h: number | null; last_updated?: string }[];
   const out: Record<string, Quote> = {};
   for (const c of data) {
     const sym = Object.keys(CG_IDS).find(k => CG_IDS[k] === c.id);
-    if (sym) out[sym] = { price: c.current_price, change24h: c.price_change_percentage_24h ?? null };
+    if (sym) out[sym] = {
+      price: c.current_price, change24h: c.price_change_percentage_24h ?? null,
+      source: 'CoinGecko', asOf: c.last_updated ? Date.parse(c.last_updated) : undefined, receivedAt: Date.now(),
+    };
   }
   cacheSet(key, out);
   return out;
@@ -254,7 +270,7 @@ async function yahooViaProxies(symbol: string, range: string, interval: string):
   throw lastErr ?? new Error('yahoo sin datos');
 }
 
-async function yahooChartCandles(symbol: string, range: string, interval: string, _timeoutMs = 25000): Promise<Candle[]> {
+async function yahooChartCandles(symbol: string, range: string, interval: string): Promise<Candle[]> {
   return yahooViaProxies(symbol, range, interval);
 }
 
@@ -299,36 +315,49 @@ async function stockCandlesYahoo(symbol: string): Promise<Candle[]> {
   return candles.slice(-420);
 }
 
-export async function fetchStockCandles(symbol: string): Promise<Candle[]> {
-  const key = `stc:${symbol}`;
-  const cached = cacheGet<Candle[]>(key);
-  if (cached) return cached;
-  const providers = [stockCandlesStooq, stockCandlesYahoo];
+async function fetchStockHistory(symbol: string): Promise<CandleHistory> {
+  const key = `stc:v2:${symbol}`;
+  const cached = cacheGet<CandleHistory>(key);
+  if (cached) return { ...cached, cached: true };
+  const providers = [{ name: 'Stooq', fetch: stockCandlesStooq }, { name: 'Yahoo Finance', fetch: stockCandlesYahoo }];
   let lastErr: unknown = null;
   for (const p of providers) {
     try {
-      const candles = await p(symbol);
-      if (candles.length >= 60) { cacheSet(key, candles); return candles; }
+      const candles = await p.fetch(symbol);
+      if (candles.length >= 60) {
+        const history = { candles, source: p.name, cached: false };
+        cacheSet(key, history); return history;
+      }
     } catch (e) { lastErr = e; }
   }
   throw lastErr ?? new Error('sin proveedores de acciones');
 }
 
+export async function fetchStockCandles(symbol: string): Promise<Candle[]> {
+  return (await fetchStockHistory(symbol)).candles;
+}
+
 /* ---------- Cargador unificado: SOLO datos reales. Si falla, error. ---------- */
-export async function loadCandles(asset: Asset): Promise<{ candles: Candle[]; source: 'live' }> {
-  const candles = asset.assetClass === 'crypto'
-    ? await fetchCryptoCandles(asset.id)
-    : await fetchStockCandles(asset.id);
-  if (candles.length < 60) throw new Error(`Datos insuficientes para ${asset.symbol}`);
-  return { candles, source: 'live' };
+export async function loadCandles(asset: Asset): Promise<CandleHistory> {
+  const history = asset.assetClass === 'crypto'
+    ? await fetchCryptoHistory(asset.id)
+    : await fetchStockHistory(asset.id);
+  if (history.candles.length < 60) throw new Error(`Datos insuficientes para ${asset.symbol}`);
+  return history;
 }
 
 export async function loadQuotes(assets: Asset[]): Promise<Record<string, Quote>> {
   const cryptoSyms = assets.filter(a => a.assetClass === 'crypto').map(a => a.id);
+  const stockSyms = assets.filter(a => a.assetClass === 'stock').map(a => a.id);
   const out: Record<string, Quote> = {};
-  try {
-    if (cryptoSyms.length) Object.assign(out, await fetchCryptoQuotes(cryptoSyms));
-  } catch { /* se derivará del historial */ }
+  const results = await Promise.allSettled([
+    cryptoSyms.length ? fetchCryptoQuotes(cryptoSyms) : Promise.resolve({} as Record<string, Quote>),
+    fetchLiveStocks(stockSyms),
+  ]);
+  results.forEach((result, i) => {
+    if (result.status !== 'fulfilled') return;
+    for (const [id, quote] of Object.entries(result.value)) out[`${i === 0 ? 'crypto' : 'stock'}:${id}`] = quote;
+  });
   return out;
 }
 
@@ -356,7 +385,7 @@ const TF_CFG: Record<Timeframe, { binance: string; limit: number; yahooInterval:
 
 /** Velas en cualquier temporalidad — SOLO datos reales (Binance para cripto, Yahoo para acciones). */
 export async function loadTimeframeCandles(asset: Asset, tf: Timeframe): Promise<Candle[]> {
-  const key = `tf:${asset.id}:${tf}`;
+  const key = `tf:v2:${asset.assetClass}:${asset.id}:${tf}`;
   const cached = cacheGet<Candle[]>(key);
   if (cached) return cached;
   const cfg = TF_CFG[tf];

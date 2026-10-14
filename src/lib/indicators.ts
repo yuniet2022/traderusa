@@ -38,12 +38,13 @@ export function rsi(closes: number[], period = 14): (number | null)[] {
     if (d > 0) gain += d; else loss -= d;
   }
   let avgGain = gain / period, avgLoss = loss / period;
-  out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  const value = () => avgLoss === 0 ? (avgGain === 0 ? 50 : 100) : 100 - 100 / (1 + avgGain / avgLoss);
+  out[period] = value();
   for (let i = period + 1; i < closes.length; i++) {
     const d = closes[i] - closes[i - 1];
     avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
     avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
-    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    out[i] = value();
   }
   return out;
 }
@@ -131,9 +132,9 @@ export function zscore(closes: number[], period = 20): number {
   return sd === 0 ? 0 : (closes[n - 1] - mean) / sd;
 }
 
-export function high52w(closes: number[]): number {
+export function high52w(closes: number[], periodsPerYear = 252): number {
   const n = closes.length;
-  const slice = closes.slice(Math.max(0, n - 252));
+  const slice = closes.slice(Math.max(0, n - periodsPerYear));
   return Math.max(...slice);
 }
 

@@ -8,6 +8,7 @@ import { LearnPanel } from '@/components/LearnPanel';
 import { DayTypePanel } from '@/components/DayTypePanel';
 import { SetupPanel } from '@/components/SetupPanel';
 import { RiskCalculator } from '@/components/RiskCalculator';
+import { PriceDataStatus } from '@/components/PriceDataStatus';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Briefcase, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -48,7 +49,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                 <span className="text-sm text-zinc-400 font-normal">{a.asset.name}</span>
                 <SignalBadge signal={a.signal} />
                 <span className="text-xs text-zinc-500 font-normal">
-                  Régimen: {a.regime} · datos reales
+                  Régimen: {a.regime}
                 </span>
               </DialogTitle>
             </DialogHeader>
@@ -62,6 +63,8 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               )}
               <span className="ml-auto"><ScoreBar score={a.composite} /></span>
             </div>
+
+            <PriceDataStatus analysis={a} />
 
             <Button
               variant="outline"
@@ -151,7 +154,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                   RSI {a.indicators.rsi14.toFixed(0)} con el precio fuera de las bandas de Bollinger
                   {a.indicators.sma20 > 0 && a.indicators.atr14 > 0 &&
                     `, a ${((a.price - a.indicators.sma20) / a.indicators.atr14).toFixed(1)}×ATR de su SMA20`}.
-                  {' '}Entrar en un pico vertical es estadísticamente el peor momento: el sistema bloquea
+                  {' '}El filtro heurístico de extensión bloquea
                   la señal de compra. La jugada correcta es esperar un pullback hacia la SMA20
                   {a.indicators.sma20 > 0 && ` (~$${fmt(a.indicators.sma20)})`} o una consolidación de varios días.
                 </div>
@@ -221,7 +224,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                 <IndicatorRow label="Distancia a máximo 52 sem." value={a.indicators.distHigh52w.toFixed(1) + '%'} />
                 <div className="mt-3 rounded bg-zinc-800/60 p-2.5 text-[11px] text-zinc-400 leading-relaxed">
                   <strong className="text-zinc-200">Cómo se calcula la señal:</strong> cada estrategia vota de -100 a +100.
-                  En régimen de tendencia pesan más trend following y momentum (evidencia AQR/Jegadeesh-Titman);
+                  En régimen de tendencia pesan más trend following y momentum;
                   en rango pesan más RSI, Bollinger y reversión de corto plazo. La puntuación compuesta se traduce
                   en la señal final. Esto no es asesoría financiera.
                 </div>

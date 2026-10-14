@@ -138,16 +138,16 @@ const EDU: Record<string, Edu> = {
     chart: 'momentum',
   },
   csmom: {
-    queMide: 'El momentum de 3 a 6 meses (Jegadeesh-Titman): el plazo donde el efecto "ganadores siguen ganando" es más fuerte.',
-    comoSeLee: 'Mezcla el rendimiento de 3 y 6 meses. Positivo = compra, negativo = venta.',
+    queMide: 'El rendimiento absoluto del propio activo a 3 y 6 meses. No compara ganadores y perdedores de un universo de activos.',
+    comoSeLee: 'Promedia ambos rendimientos. Es una regla heurística; no aplica el ranking transversal de Jegadeesh-Titman ni excluye el último mes.',
     prediccion: v => v.score > 0
       ? 'Predice que el impulso de medio plazo favorece SUBIDAS en las próximas semanas.'
       : 'Predice que el impulso de medio plazo favorece BAJADAS en las próximas semanas.',
     chart: 'momentum',
   },
   high52: {
-    queMide: 'Qué tan cerca está el precio de su máximo de 52 semanas (George & Hwang). Los inversores anclan sus decisiones en ese máximo.',
-    comoSeLee: 'Cerca del máximo anual = fuerza (voto positivo). Lejos del máximo = debilidad (voto negativo).',
+    queMide: 'La proximidad al mayor cierre del historial disponible, hasta 52 semanas. La regla está inspirada en ese concepto y no replica un estudio.',
+    comoSeLee: 'La escala heurística asigna +50 en el máximo, 0 a un 20% por debajo y valores negativos a mayor distancia. No es una probabilidad.',
     prediccion: v => v.score > 0
       ? 'Predice fortaleza: estar cerca de máximos anuales anticipa más subidas.'
       : 'Predice debilidad: estar lejos de máximos anuales anticipa estancamiento o caídas.',
@@ -197,9 +197,8 @@ const EDU: Record<string, Edu> = {
 
 function ModelCard({ vote, candles, analysis }: { vote: StrategyVote; candles: Candle[]; analysis: AssetAnalysis }) {
   const edu = EDU[vote.strategyId];
-  const closes = candles.map(c => c.close);
-
   const chartData = useMemo(() => {
+    const closes = candles.map(c => c.close);
     switch (edu.chart) {
       case 'rsi': {
         const r = rsi(closes).slice(-NB);
@@ -250,7 +249,7 @@ function ModelCard({ vote, candles, analysis }: { vote: StrategyVote; candles: C
       default:
         return null;
     }
-  }, [edu.chart, candles, analysis]);
+  }, [edu, candles, analysis]);
 
   const dir = vote.score > 10 ? 'up' : vote.score < -10 ? 'down' : 'flat';
 

@@ -9,20 +9,21 @@ import { Button } from '@/components/ui/button';
 import { Top10 } from '@/sections/Top10';
 import { cn } from '@/lib/utils';
 import { fmtPrice } from '@/lib/format';
+import { PriceDataStatus } from '@/components/PriceDataStatus';
 import { portfolioAnalyses, selectScannerAssets, type ScannerSignal, type ScannerSort } from '@/lib/scanner';
 
 interface Props {
   analyses: AssetAnalysis[];
   positions: Position[];
   loading: boolean;
-  liveCount: number;
+  quoteCount: number;
   updatedAt: number | null;
   onSelect: (a: AssetAnalysis) => void;
   onRefresh: () => void;
   onQuickAlert: (a: AssetAnalysis) => void;
 }
 
-export function Dashboard({ analyses, positions, loading, liveCount, updatedAt, onSelect, onRefresh, onQuickAlert }: Props) {
+export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt, onSelect, onRefresh, onQuickAlert }: Props) {
   const [filter, setFilter] = useState<'all' | 'stock' | 'crypto'>('all');
   const [query, setQuery] = useState('');
   const [signal, setSignal] = useState<ScannerSignal>('all');
@@ -40,7 +41,7 @@ export function Dashboard({ analyses, positions, loading, liveCount, updatedAt, 
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Activos analizados', value: analyses.length, detail: `${liveCount} cotizaciones en vivo`, color: 'text-zinc-100' },
+          { label: 'Activos analizados', value: analyses.length, detail: `${quoteCount} con cotización consultada`, color: 'text-zinc-100' },
           { label: 'Señales de compra', value: buys.length, detail: 'Puntuación de 20 o más', color: 'text-emerald-400' },
           { label: 'Posiciones en venta', value: sellsFromPortfolio.length, detail: 'Solo de tu portafolio', color: 'text-red-400' },
           { label: 'Mi portafolio', value: positions.length, detail: 'Posiciones registradas', color: 'text-indigo-300' },
@@ -54,7 +55,7 @@ export function Dashboard({ analyses, positions, loading, liveCount, updatedAt, 
       </div>
       <div className="flex items-center gap-2 text-xs text-zinc-400" role="status">
         <span className={cn('h-2 w-2 rounded-full', loading ? 'bg-amber-400 animate-pulse' : analyses.length ? 'bg-emerald-400' : 'bg-zinc-500')} />
-        {loading ? 'Actualizando el mercado…' : updatedAt ? `Actualizado a las ${new Date(updatedAt).toLocaleTimeString('es')}` : 'Esperando datos del mercado'}
+        {loading ? 'Actualizando el mercado…' : updatedAt ? `Señales calculadas a las ${new Date(updatedAt).toLocaleTimeString('es')}` : 'Esperando datos del mercado'}
       </div>
 
       {/* TOP 10 compras y ventas */}
@@ -146,7 +147,7 @@ export function Dashboard({ analyses, positions, loading, liveCount, updatedAt, 
                         <span className="text-[11px] text-zinc-500 hidden sm:inline max-w-[140px] truncate">{a.asset.name}</span>
                       </div>
                     </td>
-                    <td className="py-2 pr-2 text-right font-mono">{fmtPrice(a.price)}</td>
+                    <td className="py-2 pr-2 text-right font-mono">{fmtPrice(a.price)}<PriceDataStatus analysis={a} /></td>
                     <td className={cn('py-2 pr-2 text-right font-mono text-xs',
                       (a.change24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                       {a.change24h === null ? '—' : `${a.change24h >= 0 ? '+' : ''}${a.change24h.toFixed(2)}%`}
@@ -172,7 +173,7 @@ export function Dashboard({ analyses, positions, loading, liveCount, updatedAt, 
           </div>
         )}
         <p className="text-[10px] text-zinc-600 px-4 py-2 border-t border-zinc-800">
-          Solo activos operables en Robinhood · Cripto: Binance en vivo · Acciones: Yahoo Finance ·
+          Fuentes gratuitas con posible retraso; cada precio indica origen y hora ·
           Entrada/Objetivo/Stop calculados con volatilidad (ATR) · Las alertas automáticas avisan cuando cambia una señal · No es asesoría financiera.
         </p>
       </div>

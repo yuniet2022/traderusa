@@ -1,181 +1,104 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Bot, LineChart, Brain, Shield, BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
-
-const webullCard = {
-  name: 'Webull (broker + OpenAPI oficial)', price: '$0 comisiones · OpenAPI gratis para clientes',
-  best: 'El único broker retail "app-first" con API oficial de trading para acciones',
-  notes: 'OpenAPI oficial (developer.webull.com): Trading API (órdenes en acciones, opciones, futuros y cripto), Market Data API (quotes Level 1 en tiempo real gratis, WebSocket, históricos para backtesting), sandbox de simulación y servidor MCP para conectar agentes de IA. 27M de usuarios, cotiza en NASDAQ (BULL). Herramientas superiores a Robinhood: 100+ indicadores, paper trading (premio #1 de StockBrokers), Level 2, órdenes condicionales, 50 criptos, venta en corto. Contras: sin chat 24/7, educación mejorable, margen estándar más caro (8,74%) que Robinhood Gold. Cripto reintegrada a la app principal desde agosto 2025.',
-  tag: 'Broker + API',
-};
-
-const tools = [
-  webullCard,
-  {
-    name: 'Trade Ideas (Holly AI)', price: 'Desde ~$89/mes (Holly AI en Premium ~$167-178/mes)',
-    best: 'Señales de day trading pre-mercado generadas por IA',
-    notes: 'Holly AI simula millones de escenarios cada noche sobre ~50 estrategias y publica las mejores cada mañana, con win-rate histórico transparente. Escanea 8.000+ acciones en tiempo real. Solo acciones y opciones de EE. UU.; sin cripto. Trustpilot ~2.1/5 (pocas reseñas). Integración con Interactive Brokers y E*TRADE.',
-    tag: 'Señales IA',
-  },
-  {
-    name: 'TrendSpider', price: 'Desde ~$52-89/mes (con add-ons puede superar $200/mes)',
-    best: 'Automatización de análisis técnico multi-activo',
-    notes: 'Escáner en lenguaje natural, backtesting sin código con 50+ años de datos, AI Strategy Lab para entrenar modelos ML propios (Random Forest, KNN, regresión logística), bots sin código, apps móviles. Cubre acciones, ETFs, futuros, forex y cripto. Trustpilot ~4.8/5. Mejor valoración global en comparativas de 2026.',
-    tag: 'Análisis + bots',
-  },
-  {
-    name: 'VectorVest', price: 'Desde $19.99/mes',
-    best: 'Recomendación clara compra/venta/mantener sobre 18.000+ acciones',
-    notes: 'Sistema VST (Value, Safety, Timing) que condensa fundamentales y precio en una señal simple. Afirma superar al S&P 500 por 10x en 22 años (dato del propio proveedor). Sin cripto ni forex. Trustpilot ~4.6/5 con 2.000+ reseñas.',
-    tag: 'Recomendaciones',
-  },
-  {
-    name: 'TradingView', price: 'Desde ~$13/mes (plan gratis útil)',
-    best: 'Gráficos, 100.000+ indicadores comunitarios, Pine Script',
-    notes: 'El estándar de facto para charting. Screener multi-activo, alertas, y estrategias programables en Pine Script. No ejecuta por sí solo; se conecta a brokers compatibles (Robinhood no está soportado para trading directo).',
-    tag: 'Charting',
-  },
-  {
-    name: 'Cryptohopper / 3Commas / Pionex', price: 'Gratis – ~$50/mes',
-    best: 'Bots de cripto conectados a exchanges',
-    notes: 'Grid bots, DCA, arbitraje y copy-trading. Se conectan por API a exchanges (Binance, Coinbase, Kraken...). Robinhood solo expone API oficial para cripto, no para acciones, y estas plataformas no la soportan de forma nativa.',
-    tag: 'Bots cripto',
-  },
-  {
-    name: 'QuantConnect / Alpaca', price: 'Gratis (open source) / desde $0',
-    best: 'Backtesting y trading algorítmico programático',
-    notes: 'QuantConnect (motor Lean en C#/Python) para backtests institucionales; Alpaca ofrece API de trading de acciones sin comisiones. Son la vía seria si quieres automatizar ejecución real — pero con un broker distinto a Robinhood.',
-    tag: 'Algo trading',
-  },
-  {
-    name: 'Finviz / TC2000 / ThinkOrSwim', price: 'Gratis – ~$30/mes / gratis',
-    best: 'Screeners y análisis de opciones',
-    notes: 'Finviz para screening rápido visual, TC2000 para escaneo sin código (~$10/mes), ThinkOrSwim (Charles Schwab) gratis con analítica de opciones profesional.',
-    tag: 'Screeners',
-  },
-];
+import { BookOpen, AlertTriangle, ExternalLink } from 'lucide-react';
 
 const strategies = [
   {
-    name: 'Trend following / momentum temporal',
-    evidence: 'La evidencia más sólida que existe. AQR documentó rentabilidad positiva en cada década desde 1880 en 67 mercados, con ~11% anualizado sobre la tasa libre de riesgo (bruto), Sharpe neto ~0.76, y buen comportamiento en 8 de las 10 mayores crisis del siglo (Hurst, Ooi & Pedersen, Journal of Portfolio Management).',
-    implementation: 'En esta app: precio vs SMA200, cruce SMA50/200 (cruce dorado/muerte), SMA20 vs SMA50, y rendimiento a 12 meses.',
-    icon: LineChart,
+    name: 'Tendencia y momentum temporal',
+    description: 'Compara precio y medias móviles, y mide el rendimiento del propio activo. La literatura sobre momentum temporal estudia estrategias sistemáticas con reglas y universos concretos.',
+    implementation: 'La app combina SMA20/50/200, MACD normalizado por ATR y retornos históricos. Sus parámetros son heurísticos; no replica la cartera ni los resultados de un estudio.',
+    reference: 'Moskowitz, Ooi y Pedersen (2012), Time series momentum, Journal of Financial Economics.',
+    href: 'https://doi.org/10.1016/j.jfineco.2011.11.003',
   },
   {
-    name: 'Momentum transversal (ganadores vs perdedores)',
-    evidence: 'Jegadeesh & Titman (1993): comprar ganadores de 3-12 meses y vender perdedores generó ~1% mensual de spread, significativo en todas las combinaciones 3/6/9/12 meses. Replicado en EE. UU. y mercados internacionales durante 30 años de datos fuera de muestra. La variante "máximo de 52 semanas" (George & Hwang) duplica los retornos del momentum clásico.',
-    implementation: 'En esta app: momentum relativo 3-6 meses y proximidad al máximo de 52 semanas.',
-    icon: Brain,
+    name: 'Momentum absoluto de 3–6 meses',
+    description: 'El momentum transversal compara ganadores y perdedores de un universo de activos. Es distinto de observar únicamente si un activo ha subido.',
+    implementation: 'La app promedia retornos absolutos de 3 y 6 meses. No calcula un ranking relativo, no excluye el último mes y no implementa la cartera transversal del artículo.',
+    reference: 'Jegadeesh y Titman (1993), Returns to Buying Winners and Selling Losers, Journal of Finance.',
+    href: 'https://doi.org/10.1111/j.1540-6261.1993.tb04702.x',
   },
   {
-    name: 'Reversión a la media (RSI, Bollinger, z-score)',
-    evidence: 'Win rates del 65-75% en mercados laterales según backtests recientes (frente al 10-40% del trend following). Versiones refinadas reportan ~13% anualizado con Sharpe ~2.1 en tests de 25 años, pero fallan catastróficamente en tendencias fuertes — por eso requiere detección de régimen.',
-    implementation: 'En esta app: RSI(14), %B de Bollinger, z-score a 20 días y reversión contraria de 1 mes, con peso mayor cuando el mercado está en rango.',
-    icon: Shield,
+    name: 'Proximidad al máximo de 52 semanas',
+    description: 'La proximidad al máximo histórico reciente es una señal estudiada en la literatura. Su asociación histórica con rendimientos no garantiza el comportamiento futuro de un activo.',
+    implementation: 'La app usa el mayor cierre disponible hasta un año y una escala heurística: +50 en el máximo y 0 a un 20% por debajo. No es una probabilidad ni una réplica del estudio.',
+    reference: 'George y Hwang (2004), The 52-Week High and Momentum Investing, Journal of Finance.',
+    href: 'https://doi.org/10.1111/j.1540-6261.2004.00695.x',
   },
   {
-    name: 'MACD y cruces de medias',
-    evidence: 'Popular pero con evidencia mixta en solitario; funciona mejor como filtro de confirmación dentro de un sistema compuesto que como estrategia aislada. Su valor real está en combinarse con filtros de régimen (ADX).',
-    implementation: 'En esta app: histograma MACD (12, 26, 9) normalizado por ATR.',
-    icon: LineChart,
-  },
-  {
-    name: 'Modelos de Machine Learning',
-    evidence: 'Random Forest, gradient boosting y LSTM muestran capacidad predictiva modesta fuera de muestra en literatura académica, con alto riesgo de sobreajuste. Los fondos cuantitativos (Two Sigma, Citadel) los usan combinados con decenas de señales clásicas, no en solitario.',
-    implementation: 'Fuera del alcance de datos gratuitos en el navegador; la app emula el enfoque con un ensemble ponderado por régimen.',
-    icon: Bot,
-  },
-  {
-    name: 'Buy & Hold (referencia)',
-    evidence: 'S&P 500 ~9-10% anualizado histórico. La mayoría de estrategias activas no lo superan neto de costes a largo plazo (SPIVA). Cualquier señal debe evaluarse contra este benchmark.',
-    implementation: 'Úsalo como vara de medir: si las señales no baten comprar y mantener, no aportan.',
-    icon: BookOpen,
+    name: 'Reversión a la media y régimen',
+    description: 'RSI, bandas de Bollinger y z-score describen movimientos respecto de un rango reciente. Una lectura de sobrecompra puede persistir durante una tendencia.',
+    implementation: 'La app usa estas reglas y una aproximación de fuerza direccional para cambiar pesos. Esa aproximación no es el ADX estándar. No se ha validado una tasa de acierto, Sharpe o rentabilidad para esta combinación.',
   },
 ];
 
-const robinhoodNotes = [
-  'Robinhood tiene API oficial solo para cripto (Robinhood Crypto Trading API). No existe API pública oficial para acciones.',
-  'Las librerías no oficiales (robin_stocks, etc.) usan endpoints privados: violan los términos de servicio, se rompen con frecuencia y pueden conllevar cierre de cuenta. No recomendado.',
-  'Novedad clave: Webull sí ofrece OpenAPI oficial para acciones, opciones, futuros y cripto (Trading API + Market Data API en tiempo real, con sandbox y SDK en developer.webull.com). Si quieres que TradeRadar ejecute órdenes automáticamente, Webull es hoy la vía oficial más accesible para el trader minorista.',
-  'Flujo recomendado actual: esta app genera señales → tú ejecutas manualmente en tu broker. Siguiente paso posible: conectar TradeRadar a la OpenAPI de Webull para ejecución automática y datos Level 1 en tiempo real sin retraso.',
+const validation = [
+  'Definir universo, fechas, horizonte de las señales y reglas de entrada/salida antes del experimento.',
+  'Usar datos ajustados, sin información futura y con control de sesgo de supervivencia.',
+  'Separar cronológicamente entrenamiento, validación y prueba; evaluar también ventanas fuera de muestra.',
+  'Incluir comisiones, spread, deslizamiento y disponibilidad de los instrumentos.',
+  'Comparar con comprar y mantener y con reglas simples, e informar drawdown, rotación y resultados netos.',
 ];
 
+const resources = [
+  { name: 'TradingView', description: 'Documentación de gráficos y lenguaje Pine Script.', href: 'https://www.tradingview.com/pine-script-docs/' },
+  { name: 'QuantConnect', description: 'Documentación de investigación y backtesting con LEAN.', href: 'https://www.quantconnect.com/docs/' },
+  { name: 'Alpaca', description: 'Documentación de datos y APIs de trading; consulta elegibilidad y condiciones.', href: 'https://docs.alpaca.markets/' },
+  { name: 'Webull', description: 'Portal de desarrolladores; verifica permisos, mercados y planes actuales.', href: 'https://developer.webull.com/' },
+];
 
 export function Research() {
   return (
     <div className="space-y-6">
       <Card className="bg-amber-950/20 border-amber-900/40">
         <CardContent className="pt-4 flex gap-3">
-          <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={18} />
-          <p className="text-sm text-amber-200/90 leading-relaxed">
-            Ninguna herramienta — incluida esta app — garantiza beneficios. Las rentabilidades citadas
-            proceden de backtests y literatura académica; el rendimiento pasado no asegura resultados futuros.
-            Esto no es asesoría financiera.
-          </p>
+          <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={18} aria-hidden="true" />
+          <div className="text-sm text-amber-200/90 space-y-2">
+            <p className="font-semibold">El motor de señales no tiene un backtest validado.</p>
+            <p>Las puntuaciones son reglas educativas, no probabilidades de beneficio. Las referencias explican los conceptos; sus resultados no son resultados de TraderUSA.</p>
+          </div>
         </CardContent>
       </Card>
 
-      <div>
-        <h2 className="text-lg font-bold mb-1">Herramientas existentes (investigación 2026)</h2>
-        <p className="text-sm text-zinc-400 mb-4">
-          Comparativa de las principales plataformas de señales, escáneres y bots, con precios y especialidad.
-        </p>
-        <div className="grid md:grid-cols-2 gap-3">
-          {tools.map(t => (
-            <Card key={t.name} className="bg-zinc-900/60 border-zinc-800">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-sm">{t.name}</CardTitle>
-                  <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">{t.tag}</Badge>
-                </div>
-                <p className="text-xs text-emerald-400/90 font-medium">{t.price}</p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-zinc-300 font-medium mb-1">Mejor para: {t.best}</p>
-                <p className="text-xs text-zinc-500 leading-relaxed">{t.notes}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+      <section className="space-y-3" aria-labelledby="research-methods">
+        <h2 id="research-methods" className="text-lg font-bold">Qué calcula la app y de dónde viene la idea</h2>
+        {strategies.map(strategy => (
+          <Card key={strategy.name} className="bg-zinc-900/60 border-zinc-800">
+            <CardHeader className="pb-2"><CardTitle className="text-sm">{strategy.name}</CardTitle></CardHeader>
+            <CardContent className="space-y-2 text-xs leading-relaxed">
+              <p className="text-zinc-400">{strategy.description}</p>
+              <p className="text-indigo-300">{strategy.implementation}</p>
+              {strategy.href && <a href={strategy.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-zinc-300 underline underline-offset-2">
+                <BookOpen size={13} aria-hidden="true" />{strategy.reference}
+              </a>}
+            </CardContent>
+          </Card>
+        ))}
+      </section>
 
-      <div>
-        <h2 className="text-lg font-bold mb-1">Estrategias con mejor evidencia de resultados</h2>
-        <p className="text-sm text-zinc-400 mb-4">
-          Ordenadas por solidez de la evidencia académica y práctica. Las 4 primeras están implementadas en el motor de señales de esta app.
-        </p>
-        <div className="space-y-3">
-          {strategies.map(s => (
-            <Card key={s.name} className="bg-zinc-900/60 border-zinc-800">
-              <CardContent className="pt-4 flex gap-3">
-                <s.icon className="text-indigo-400 shrink-0 mt-0.5" size={18} />
-                <div className="space-y-1.5">
-                  <h3 className="text-sm font-semibold">{s.name}</h3>
-                  <p className="text-xs text-zinc-400 leading-relaxed"><span className="text-zinc-200 font-medium">Evidencia:</span> {s.evidence}</p>
-                  <p className="text-xs text-indigo-300/80 leading-relaxed">{s.implementation}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-bold mb-4">Tu caso: Robinhood hoy y la opción Webull</h2>
+      <section className="space-y-3" aria-labelledby="research-validation">
+        <h2 id="research-validation" className="text-lg font-bold">Cómo evaluar una futura estrategia</h2>
         <Card className="bg-zinc-900/60 border-zinc-800">
-          <CardContent className="pt-4">
-            <ul className="space-y-2.5">
-              {robinhoodNotes.map((n, i) => (
-                <li key={i} className="flex gap-2.5 text-xs text-zinc-300 leading-relaxed">
-                  <CheckCircle2 className="text-emerald-400 shrink-0 mt-0.5" size={14} />
-                  {n}
-                </li>
-              ))}
-            </ul>
+          <CardContent className="pt-4 space-y-3 text-xs text-zinc-400">
+            <p>Antes de añadir momentum relativo, pesos por familias o un modelo como LightGBM/XGBoost, necesitamos un protocolo reproducible.</p>
+            <ol className="list-decimal pl-4 space-y-2">{validation.map(item => <li key={item}>{item}</li>)}</ol>
+            <p>Esas extensiones y los modelos de aprendizaje automático todavía no están implementados ni evaluados en esta app.</p>
           </CardContent>
         </Card>
-      </div>
+      </section>
+
+      <section className="space-y-3" aria-labelledby="research-resources">
+        <h2 id="research-resources" className="text-lg font-bold">Documentación de herramientas externas</h2>
+        <p className="text-xs text-zinc-400">Consulta precios y capacidades vigentes en las fuentes oficiales. La app no está conectada a estas plataformas ni ejecuta órdenes.</p>
+        <div className="grid sm:grid-cols-2 gap-3">{resources.map(resource => (
+          <Card key={resource.name} className="bg-zinc-900/60 border-zinc-800">
+            <CardContent className="pt-4 space-y-2">
+              <a href={resource.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-medium text-emerald-300">{resource.name}<ExternalLink size={13} aria-hidden="true" /></a>
+              <p className="text-xs text-zinc-400">{resource.description}</p>
+              <Badge variant="outline" className="text-[10px] border-zinc-700 text-zinc-400">Fuente externa</Badge>
+            </CardContent>
+          </Card>
+        ))}</div>
+      </section>
     </div>
   );
 }

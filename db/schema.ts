@@ -1,6 +1,5 @@
 import {
   mysqlTable,
-  serial,
   varchar,
   timestamp,
   bigint,
@@ -12,7 +11,7 @@ import {
 
 /** Usuarios con login por usuario + contraseña (hash scrypt). */
 export const users = mysqlTable("tr_users", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   username: varchar("username", { length: 64 }).notNull().unique(),
   passHash: varchar("passHash", { length: 255 }).notNull(),
   displayName: varchar("displayName", { length: 128 }),
@@ -27,7 +26,7 @@ export type User = typeof users.$inferSelect;
 
 /** Códigos de acceso de un solo uso para registrarse (vendidos como suscripción). */
 export const accessCodes = mysqlTable("tr_access_codes", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
   code: varchar("code", { length: 32 }).notNull().unique(),
   days: int("days").notNull().default(30),
   note: varchar("note", { length: 128 }),
@@ -49,7 +48,7 @@ export interface BuyLot {
 export const positions = mysqlTable(
   "tr_positions",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
     assetId: varchar("assetId", { length: 64 }).notNull(),
     symbol: varchar("symbol", { length: 32 }).notNull(),
@@ -66,7 +65,7 @@ export type Position = typeof positions.$inferSelect;
 export const alerts = mysqlTable(
   "tr_alerts",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
     userId: bigint("userId", { mode: "number", unsigned: true }).notNull(),
     assetId: varchar("assetId", { length: 64 }).notNull(),
     symbol: varchar("symbol", { length: 32 }).notNull(),
