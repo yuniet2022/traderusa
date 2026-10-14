@@ -3,7 +3,8 @@ import type { Position } from '@/lib/portfolio';
 import { SignalBadge } from '@/components/SignalBadge';
 import { TrendingUp, TrendingDown, Briefcase } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { fmtPrice } from '@/sections/Dashboard';
+import { fmtPrice } from '@/lib/format';
+import { portfolioAnalyses } from '@/lib/scanner';
 
 interface Props {
   analyses: AssetAnalysis[];
@@ -39,12 +40,10 @@ function Row({ a, rank, onSelect }: { a: AssetAnalysis; rank: number; onSelect: 
 }
 
 export function Top10({ analyses, positions, onSelect }: Props) {
-  const buys = analyses.filter(a => a.composite >= 20).slice(0, 10);
+  const buys = analyses.filter(a => a.composite >= 20).sort((a, b) => b.composite - a.composite).slice(0, 10);
 
   // Ventas: solo activos que el usuario TIENE en su portafolio y están en señal de venta
-  const myPositions = positions
-    .map(p => analyses.find(a => a.asset.id === p.assetId))
-    .filter((a): a is AssetAnalysis => !!a);
+  const myPositions = portfolioAnalyses(analyses, positions);
   const sellsFromPortfolio = myPositions.filter(a => a.composite <= -20).sort((a, b) => a.composite - b.composite);
   const otherPositions = myPositions.filter(a => a.composite > -20);
 
@@ -53,13 +52,13 @@ export function Top10({ analyses, positions, onSelect }: Props) {
       <div className="rounded-lg border border-emerald-900/50 bg-emerald-950/10 overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-emerald-900/40 bg-emerald-950/30">
           <TrendingUp size={15} className="text-emerald-400" />
-          <h3 className="text-sm font-semibold text-emerald-300">Top {buys.length || 10} oportunidades de COMPRA</h3>
+          <h3 className="text-sm font-semibold text-emerald-300">Top {buys.length} oportunidades de COMPRA</h3>
         </div>
         {buys.length === 0 ? (
           <p className="px-3 py-6 text-xs text-zinc-500 text-center">
             No hay señales de compra ahora mismo. El mercado no ofrece entradas claras según las 8 estrategias — esperar también es una posición.
           </p>
-        ) : buys.map((a, i) => <Row key={a.asset.id} a={a} rank={i + 1} onSelect={onSelect} />)}
+        ) : buys.map((a, i) => <Row key={`${a.asset.assetClass}:${a.asset.id}`} a={a} rank={i + 1} onSelect={onSelect} />)}
       </div>
 
       <div className="rounded-lg border border-red-900/50 bg-red-950/10 overflow-hidden">
@@ -85,7 +84,7 @@ export function Top10({ analyses, positions, onSelect }: Props) {
           </div>
         ) : (
           <>
-            {sellsFromPortfolio.map((a, i) => <Row key={a.asset.id} a={a} rank={i + 1} onSelect={onSelect} />)}
+            {sellsFromPortfolio.map((a, i) => <Row key={`${a.asset.assetClass}:${a.asset.id}`} a={a} rank={i + 1} onSelect={onSelect} />)}
             {otherPositions.length > 0 && (
               <p className="px-3 py-2 text-[10px] text-zinc-600 border-t border-zinc-800/40">
                 Sin señal de venta: {otherPositions.map(a => a.asset.symbol).join(', ')}

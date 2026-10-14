@@ -9,21 +9,27 @@ interface Props {
 
 export function SearchBox({ onPick }: Props) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Asset[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [search, setSearch] = useState<{ query: string; results: Asset[] }>({ query: '', results: [] });
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const searching = query.trim().length > 0 && search.query !== query;
+  const results = search.query === query ? search.results : [];
 
   useEffect(() => {
-    if (query.trim().length === 0) { setResults([]); setOpen(false); return; }
-    setSearching(true);
+    if (query.trim().length === 0) return;
+    const controller = new AbortController();
     const t = setTimeout(async () => {
-      const r = await searchAssets(query);
-      setResults(r);
-      setSearching(false);
-      setOpen(true);
+      try {
+        const results = await searchAssets(query, controller.signal);
+        if (!controller.signal.aborted) setSearch({ query, results });
+      } catch {
+        if (!controller.signal.aborted) setSearch({ query, results: [] });
+      }
     }, 400);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, [query]);
 
   useEffect(() => {
@@ -35,18 +41,22 @@ export function SearchBox({ onPick }: Props) {
   }, []);
 
   return (
-    <div ref={boxRef} className="relative w-full max-w-sm">
+    <div ref={boxRef} className="relative min-w-0 flex-1 basis-48 max-w-sm">
       <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 h-9 focus-within:border-emerald-600 transition-colors">
         {searching ? <Loader2 size={15} className="text-zinc-500 animate-spin" /> : <Search size={15} className="text-zinc-500" />}
         <input
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          onFocus={() => results.length > 0 && setOpen(true)}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => query.trim().length > 0 && setOpen(true)}
+          onKeyDown={e => { if (e.key === 'Escape') setOpen(false); }}
+          aria-label="Buscar acción o criptomoneda"
+          autoComplete="off"
           placeholder="Buscar acción o cripto (ej. AAPL, BTC…)"
-          className="bg-transparent outline-none text-sm w-full placeholder:text-zinc-600"
+          className="bg-transparent outline-none text-sm min-w-0 w-full placeholder:text-zinc-600"
         />
       </div>
-      {open && (
+      {searching && <span role="status" className="sr-only">Buscando activos…</span>}
+      {open && query.trim().length > 0 && !searching && (
         <div className="absolute top-10 left-0 right-0 z-50 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
           {results.length === 0 ? (
             <p className="px-3 py-2.5 text-xs text-zinc-500">Sin resultados para «{query}»</p>

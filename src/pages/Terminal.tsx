@@ -59,7 +59,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap sm:flex-nowrap items-center gap-3">
           <div className="flex items-center gap-2 shrink-0">
             <div className="rounded-lg bg-emerald-500/15 p-1.5">
               <Radar size={20} className="text-emerald-400" />
@@ -90,7 +90,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
             <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-800">
               {user.isAdmin && <AdminPanel />}
               <span className="text-xs text-zinc-400 hidden sm:inline max-w-24 truncate">{user.displayName ?? user.username}</span>
-              <button onClick={() => logout.mutate()} title="Cerrar sesión"
+              <button onClick={() => logout.mutate()} title="Cerrar sesión" aria-label="Cerrar sesión"
                 className="text-zinc-500 hover:text-red-400 transition-colors p-1">
                 <LogOut size={15} />
               </button>

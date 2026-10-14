@@ -47,10 +47,15 @@ export function verifySessionToken(token: string): SessionPayload | null {
   if (dot <= 0) return null;
   const body = token.slice(0, dot);
   const sig = token.slice(dot + 1);
-  if (sign(body) !== sig) return null;
+  const expected = Buffer.from(sign(body));
+  const actual = Buffer.from(sig);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   try {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as SessionPayload;
-    if (!payload.uid || payload.exp < Date.now()) return null;
+    if (!Number.isSafeInteger(payload.uid) || payload.uid <= 0
+      || typeof payload.username !== 'string' || !payload.username
+      || typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)
+      || payload.exp <= Date.now()) return null;
     return payload;
   } catch {
     return null;
@@ -66,16 +71,20 @@ export function readSessionCookie(req: Request): SessionPayload | null {
   for (const part of raw.split(";")) {
     const [k, ...v] = part.trim().split("=");
     if (k === SESSION_COOKIE) {
-      return verifySessionToken(decodeURIComponent(v.join("=")));
+      try {
+        return verifySessionToken(decodeURIComponent(v.join("=")));
+      } catch {
+        return null;
+      }
     }
   }
   return null;
 }
 
 export function sessionCookieHeader(token: string): string {
-  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}`;
+  return `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}${env.isProduction ? '; Secure' : ''}`;
 }
 
 export function clearSessionCookieHeader(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${env.isProduction ? '; Secure' : ''}`;
 }

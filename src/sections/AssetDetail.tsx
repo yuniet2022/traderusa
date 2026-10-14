@@ -7,6 +7,7 @@ import { CandleChart } from '@/components/CandleChart';
 import { LearnPanel } from '@/components/LearnPanel';
 import { DayTypePanel } from '@/components/DayTypePanel';
 import { SetupPanel } from '@/components/SetupPanel';
+import { RiskCalculator } from '@/components/RiskCalculator';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Briefcase, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -182,6 +183,8 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               </div>
               <p className="text-[11px] text-zinc-400 leading-relaxed">{a.levels.note}</p>
             </div>
+
+            <RiskCalculator key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} />
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">

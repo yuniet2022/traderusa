@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { SignalBadge } from '@/components/SignalBadge';
 import { Briefcase, Trash2, Plus, Search, Loader2, X, Download, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { fmtPrice } from '@/sections/Dashboard';
+import { fmtPrice } from '@/lib/format';
 
 interface Props {
   positions: Position[];
