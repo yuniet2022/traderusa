@@ -49,4 +49,3 @@ CREATE TABLE `tr_users` (
 	CONSTRAINT `tr_users_id` PRIMARY KEY(`id`),
 	CONSTRAINT `tr_users_username_unique` UNIQUE(`username`)
 );
-
