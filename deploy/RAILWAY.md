@@ -48,6 +48,7 @@ Mantén estable `APP_SECRET`: cambiarlo invalida las sesiones. Usa una sola rép
 
 ## Si falla
 
+- **Error de consulta al iniciar sesión:** consulta los logs de ejecución de TraderUSA y busca `[API_ERROR]`. Se registra el procedimiento y el código de la causa, sin consultas ni parámetros. `ER_NO_SUCH_TABLE` indica que faltan tablas (revisa el paso pre-deploy); `ER_ACCESS_DENIED_ERROR` indica credenciales o permisos; `ENOTFOUND` indica resolución del host; `ECONNREFUSED` indica que la conexión fue rechazada. Comparte únicamente esa línea para diagnosticar el fallo.
 - **Pre-deploy / conexión:** confirma que MySQL está listo y que `DATABASE_URL` referencia `MySQL.MYSQL_URL`. Después vuelve a desplegar.
 - **Credenciales iniciales:** configura las dos variables `TRADER_ADMIN_*` si todavía no existe un administrador. El inicializador no convierte usuarios existentes en administradores ni restablece contraseñas.
 - **Esquema incompatible:** revisa la base y aplica una migración adecuada. No borres el volumen para intentar arreglarlo.
