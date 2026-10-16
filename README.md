@@ -26,6 +26,10 @@ No ejecutes `db:push` sobre una base de producción para probar cambios. El esqu
 
 El registro requiere un código de acceso creado por un administrador. No hay un usuario administrador ni una contraseña predeterminados. Los permisos de notificación del navegador son opcionales.
 
+## Despliegue en DigitalOcean
+
+La guía [deploy/DIGITALOCEAN.md](deploy/DIGITALOCEAN.md) instala TraderUSA junto a ArchViz con Docker, una base independiente y credenciales de ejecución. Incluye comprobaciones de recursos, creación del primer administrador y los requisitos de dominio/HTTPS.
+
 ## Compilación y producción
 
 ```sh

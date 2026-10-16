@@ -1,18 +1,20 @@
-# Build stage
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
+ENV NODE_OPTIONS=--max-old-space-size=512
+COPY package.json package-lock.json ./
+RUN --mount=type=secret,id=build_ca \
+    if [ -s /run/secrets/build_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/build_ca; fi; \
+    npm ci --registry=https://registry.npmjs.org --replace-registry-host=always --no-audit --no-fund --maxsockets=8 --fetch-retries=1 --fetch-timeout=60000 --loglevel=http
 COPY . .
 RUN npm run build
+RUN ./node_modules/.bin/esbuild scripts/create-admin.ts --platform=node --bundle --format=esm --outfile=dist/create-admin.js --banner:js="import { createRequire } from 'node:module';const require = createRequire(import.meta.url);"
 
-# Runtime stage
-FROM node:20-alpine
+FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
-COPY --from=build /app/dist ./dist
-COPY .env .env
+ENV NODE_OPTIONS=--max-old-space-size=192
+COPY --from=build --chown=node:node /app/dist ./dist
+USER node
 EXPOSE 3000
-CMD ["npm", "start"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD node -e "fetch('http://127.0.0.1:3000/api/trpc/ping').then(async r=>{const d=await r.json();process.exit(r.ok&&d.result?.data?.json?.ok===true?0:1)}).catch(()=>process.exit(1))"
+CMD ["node", "dist/boot.js"]

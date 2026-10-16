@@ -3,3 +3,11 @@ dist
 .git
 *.swp
 *.log
+.env
+.env.*
+.deployment-settings.*
+*.pem
+*.key
+*.sql
+!deploy/schema.sql
+coverage

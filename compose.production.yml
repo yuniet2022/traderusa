@@ -1,0 +1,49 @@
+name: traderusa
+
+services:
+  db:
+    build:
+      context: .
+      dockerfile: deploy/Database.Dockerfile
+    image: traderusa-db:local
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: traderusa
+      MARIADB_USER: traderusa
+      MARIADB_PASSWORD: ${TRADER_DB_PASSWORD:?Run bash scripts/init-deployment.sh first}
+      MARIADB_ROOT_PASSWORD: ${TRADER_DB_ROOT_PASSWORD:?Run bash scripts/init-deployment.sh first}
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --innodb-buffer-pool-size=64M, --max-connections=30]
+    volumes:
+      - database:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          healthcheck.sh --connect --innodb_initialized &&
+          MYSQL_PWD="$${MARIADB_PASSWORD}" mariadb --user="$${MARIADB_USER}" --database="$${MARIADB_DATABASE}"
+          --execute="SELECT id FROM tr_users LIMIT 0; SELECT id FROM tr_access_codes LIMIT 0; SELECT id FROM tr_positions LIMIT 0; SELECT id FROM tr_alerts LIMIT 0" >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 384m
+
+  app:
+    build: .
+    image: traderusa:local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      APP_ID: traderusa
+      APP_SECRET: ${TRADER_APP_SECRET:?Run bash scripts/init-deployment.sh first}
+      DATABASE_URL: mysql://traderusa:${TRADER_DB_PASSWORD:?Run bash scripts/init-deployment.sh first}@db:3306/traderusa
+      PORT: '3000'
+    ports:
+      - 127.0.0.1:${TRADER_LOCAL_PORT:-3001}:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 256m
+
+volumes:
+  database:
