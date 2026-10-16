@@ -2,9 +2,7 @@ FROM node:24-alpine AS build
 WORKDIR /app
 ENV NODE_OPTIONS=--max-old-space-size=512
 COPY package.json package-lock.json ./
-RUN --mount=type=secret,id=build_ca \
-    if [ -s /run/secrets/build_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/build_ca; fi; \
-    npm ci --registry=https://registry.npmjs.org --replace-registry-host=always --no-audit --no-fund --maxsockets=8 --fetch-retries=1 --fetch-timeout=60000 --loglevel=http
+RUN npm ci --registry=https://registry.npmjs.org --replace-registry-host=always --no-audit --no-fund --maxsockets=8 --fetch-retries=1 --fetch-timeout=60000 --loglevel=http
 COPY . .
 RUN npm run build
 RUN ./node_modules/.bin/esbuild scripts/create-admin.ts scripts/init-database.ts --platform=node --bundle --format=esm --outdir=dist --banner:js="import { createRequire } from 'node:module';const require = createRequire(import.meta.url);"
