@@ -26,6 +26,10 @@ No ejecutes `db:push` sobre una base de producción para probar cambios. El esqu
 
 El registro requiere un código de acceso creado por un administrador. No hay un usuario administrador ni una contraseña predeterminados. Los permisos de notificación del navegador son opcionales.
 
+## Despliegue en Railway
+
+La guía [deploy/RAILWAY.md](deploy/RAILWAY.md) configura la aplicación desde GitHub y MySQL en el mismo proyecto. Incluye las variables necesarias, la creación automática del primer administrador y un dominio HTTPS de Railway. `railway.json` establece la construcción con Docker, la inicialización previa al despliegue y la comprobación de salud. Los siguientes despliegues conservan las cuentas existentes; los cambios de esquema requieren migraciones revisadas.
+
 ## Despliegue en DigitalOcean
 
 La guía [deploy/DIGITALOCEAN.md](deploy/DIGITALOCEAN.md) instala TraderUSA junto a ArchViz con Docker, una base independiente y credenciales de ejecución. Incluye comprobaciones de recursos, creación del primer administrador y los requisitos de dominio/HTTPS.
