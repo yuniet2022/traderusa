@@ -4,7 +4,7 @@ Aplicación educativa de análisis técnico de acciones y criptomonedas. Incluye
 
 ## Desarrollo
 
-Requisitos: Node.js 24, npm 11 y MySQL/MariaDB con soporte de transacciones InnoDB. La configuración local se probó con MariaDB 11. Las fuentes de mercado requieren acceso HTTPS a Binance, Stooq y los proveedores alternativos de `src/lib/data.ts`; Yahoo se consulta mediante proxies CORS públicos.
+Requisitos: Node.js 24, npm 11 y MySQL/MariaDB con soporte de transacciones InnoDB. La configuración local se probó con MariaDB 11. El servidor necesita acceso HTTPS a `stooq.com`, `query1.finance.yahoo.com`, `api.kraken.com` y `api.binance.com`. El navegador consulta exclusivamente la API de mercado de la aplicación con su sesión; no requiere proxies CORS públicos.
 
 ```sh
 npm ci --registry=https://registry.npmjs.org --replace-registry-host=always
@@ -64,6 +64,9 @@ Existen incidencias previas de ESLint en otros componentes; una compilación cor
 
 ## Señales y actualización de datos
 
+- Los historiales, cotizaciones y búsquedas se consultan mediante `/api/market/*`, con sesión y parámetros validados. El servidor usa fuentes directas de OHLC, comparte peticiones simultáneas, conserva una caché acotada y pausa las fuentes que responden con límites de uso o restricciones. No acepta URLs arbitrarias. Los logs `[MARKET_SOURCE_ERROR]` identifican fuente y código sin registrar credenciales.
+- El escáner analiza hasta cuatro activos simultáneamente y muestra los resultados conforme llegan. Cada barrido termina en un máximo de 45 segundos; un aviso indica si faltan activos. Conserva análisis anteriores identificados como caché cuando una actualización falla. La primera carga del historial no espera a las cotizaciones: puede mostrar precios históricos hasta recibir una cotización posterior.
+- La caché del servidor conserva historiales cinco minutos (30 segundos en intradía) y cotizaciones 30 segundos. Si fallan las fuentes, puede servir un historial almacenado hasta 24 horas o una cotización hasta cinco minutos, siempre marcada como caché y conservando las fechas originales. Las fuentes gratuitas pueden limitar el acceso también desde servidores; si ninguna entrega OHLC suficientes se muestra el fallo y se permite reintentar, sin generar precios o velas.
 - La carga del historial se repite cada cinco minutos; las cotizaciones se consultan cada 30 segundos. No se garantiza que los proveedores gratuitos entreguen precios de tiempo real ni que estén disponibles.
 - La carga inicial y cada tick aceptado usan el mismo cálculo: actualizan la vela, RSI, medias, MACD, ATR, votos, régimen, puntuación, filtros de extensión, señal y niveles. El detalle abierto refleja el análisis actualizado. Las respuestas anteriores a una recarga completa no sobrescriben esa recarga.
 - Un tick del mismo día modifica una copia de la última vela. Si el proveedor da una hora de un día UTC posterior, se agrega una vela provisional con los precios observados; su volumen inicial es cero y no reconstruye operaciones intradía desconocidas. Si falta la hora del proveedor, se actualiza la última vela disponible sin inventar una fecha de cotización. Esto es un cálculo indicativo, no un feed OHLC oficial.

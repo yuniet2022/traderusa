@@ -18,12 +18,14 @@ interface Props {
   loading: boolean;
   quoteCount: number;
   updatedAt: number | null;
+  marketNotice?: string | null;
+  progress?: { completed: number; total: number };
   onSelect: (a: AssetAnalysis) => void;
   onRefresh: () => void;
   onQuickAlert: (a: AssetAnalysis) => void;
 }
 
-export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt, onSelect, onRefresh, onQuickAlert }: Props) {
+export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt, marketNotice, progress, onSelect, onRefresh, onQuickAlert }: Props) {
   const [filter, setFilter] = useState<'all' | 'stock' | 'crypto'>('all');
   const [query, setQuery] = useState('');
   const [signal, setSignal] = useState<ScannerSignal>('all');
@@ -55,8 +57,9 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
       </div>
       <div className="flex items-center gap-2 text-xs text-zinc-400" role="status">
         <span className={cn('h-2 w-2 rounded-full', loading ? 'bg-amber-400 animate-pulse' : analyses.length ? 'bg-emerald-400' : 'bg-zinc-500')} />
-        {loading ? 'Actualizando el mercado…' : updatedAt ? `Señales calculadas a las ${new Date(updatedAt).toLocaleTimeString('es')}` : 'Esperando datos del mercado'}
+        {loading ? `Actualizando el mercado…${progress?.total ? ` ${progress.completed}/${progress.total}` : ''}` : updatedAt ? `Señales calculadas a las ${new Date(updatedAt).toLocaleTimeString('es')}` : 'Esperando datos del mercado'}
       </div>
+      {marketNotice && <p role="status" className="text-xs text-amber-300 rounded-md border border-amber-900/60 bg-amber-950/20 px-3 py-2">{marketNotice}</p>}
 
       {/* TOP 10 compras y ventas */}
       {!loading || analyses.length > 0 ? <Top10 analyses={analyses} positions={positions} onSelect={onSelect} /> : null}

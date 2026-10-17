@@ -16,7 +16,7 @@ import type { Asset, AssetAnalysis } from '@/types';
 import { Radar, BookOpen, LayoutDashboard, LogOut } from 'lucide-react';
 
 export default function Terminal({ user }: { user: SessionUser }) {
-  const { analyses, loading, quoteCount, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition } = useMarketData(user.id);
+  const { analyses, loading, marketNotice, progress, quoteCount, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition } = useMarketData(user.id);
   const { logout } = useAuth();
   const [selected, setSelected] = useState<AssetAnalysis | null>(null);
   const selectedAnalysis = selected
@@ -125,6 +125,8 @@ export default function Terminal({ user }: { user: SessionUser }) {
               loading={loading}
               quoteCount={quoteCount}
               updatedAt={updatedAt}
+              marketNotice={marketNotice}
+              progress={progress}
               onSelect={setSelected}
               onRefresh={refresh}
               onQuickAlert={handleQuickAlert}
@@ -139,7 +141,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
       <footer className="border-t border-zinc-800 mt-8">
         <div className="max-w-6xl mx-auto px-4 py-4 text-[11px] text-zinc-600 leading-relaxed">
           TradeRadar es una herramienta educativa de análisis técnico. No es asesoría financiera ni garantiza resultados.
-          Las decisiones de inversión y la ejecución de órdenes son responsabilidad tuya. Fuentes: Binance, CoinGecko, Yahoo Finance y Stooq.
+          Las decisiones de inversión y la ejecución de órdenes son responsabilidad tuya. Fuentes: Kraken, Binance, Yahoo Finance y Stooq.
         </div>
       </footer>
 

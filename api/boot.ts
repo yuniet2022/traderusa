@@ -3,10 +3,12 @@ import { bodyLimit } from "hono/body-limit";
 import type { HttpBindings } from "@hono/node-server";
 import { handleTrpcRequest } from "./trpcHandler";
 import { env } from "./lib/env";
+import { createMarketRoutes } from "./marketRoutes";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+app.route("/api/market", createMarketRoutes());
 app.use("/api/trpc/*", (c) => handleTrpcRequest(c.req.raw));
 app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 

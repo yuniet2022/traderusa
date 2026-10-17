@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Asset, AssetAnalysis, Quote } from '@/types';
-import { WATCHLIST, loadCandles, loadQuotes } from '@/lib/data';
+import { WATCHLIST, loadCandles } from '@/lib/data';
+import { scanMarket } from '@/lib/marketRefresh';
 import { fetchLiveCrypto, fetchLiveStocks } from '@/lib/live';
 import { buildAssetAnalysis, repriceAnalysis } from '@/lib/analysis';
 import {
@@ -18,8 +19,8 @@ function loadCustomAssets(): Asset[] {
   catch { return []; }
 }
 
-async function analyzeAsset(asset: Asset, quotes: Record<string, Quote>, previous?: AssetAnalysis): Promise<AssetAnalysis | null> {
-  const history = await loadCandles(asset);
+async function analyzeAsset(asset: Asset, quotes: Record<string, Quote>, previous?: AssetAnalysis, signal?: AbortSignal): Promise<AssetAnalysis | null> {
+  const history = await loadCandles(asset, signal);
   let quote = quotes[`${asset.assetClass}:${asset.id}`];
   if (previous?.quoteReceivedAt && (!quote || !Number.isFinite(quote.price) || quote.price <= 0
     || (quote.asOf && previous.priceAsOf && quote.asOf < previous.priceAsOf))) {
@@ -55,11 +56,14 @@ export function useMarketData(userId: number | null) {
   const [analyses, setAnalyses] = useState<AssetAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [marketNotice, setMarketNotice] = useState<string | null>(null);
+  const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [alerts, setAlerts] = useState<AlertRule[]>(() => loadAlerts());
   const [portfolio, setPortfolio] = useState<Position[]>(() => loadPortfolio());
   const busy = useRef(false);
   const tickBusy = useRef(false);
   const refreshVersion = useRef(0);
+  const refreshAbort = useRef<AbortController | null>(null);
   const analysesRef = useRef<AssetAnalysis[]>([]);
   analysesRef.current = analyses;
   const alertsRef = useRef<AlertRule[]>(alerts);
@@ -124,36 +128,52 @@ export function useMarketData(userId: number | null) {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (busy.current) return;
+    if (busy.current && !refreshAbort.current?.signal.aborted) return;
     busy.current = true;
-    refreshVersion.current++;
+    const version = ++refreshVersion.current;
+    const controller = new AbortController();
+    refreshAbort.current = controller;
     setLoading(true);
+    setMarketNotice(null);
     try {
-      const all = [...WATCHLIST, ...loadCustomAssets()];
-      const quotes = await loadQuotes(all).catch(() => ({} as Record<string, Quote>));
-      const results: AssetAnalysis[] = [];
-      for (const asset of all) {
-        try {
-          const previous = analysesRef.current.find(a => a.asset.id === asset.id && a.asset.assetClass === asset.assetClass);
-          const a = await analyzeAsset(asset, quotes, previous);
-          if (a) {
-            results.push(a);
-          }
-        } catch { /* sin datos reales → no se muestra, jamás se inventa */ }
-      }
-      results.sort((a, b) => b.composite - a.composite);
-      notifySignalChanges(analysesRef.current, results);
+      const key = (asset: Asset) => `${asset.assetClass}:${asset.id}`;
+      const all = [...new Map([...WATCHLIST, ...loadCustomAssets()].map(asset => [key(asset), asset])).values()];
+      setProgress({ completed: 0, total: all.length });
+      const before = analysesRef.current;
+      const previous = new Map(before.map(a => [key(a.asset), a]));
+      const scanKeys = new Set(all.map(key));
+      const found = new Map(before.map(a => [key(a.asset), { ...a, dataSource: 'cached' as const } as AssetAnalysis]));
+      const summary = await scanMarket(all, (asset, signal) => analyzeAsset(asset, {}, previous.get(key(asset)), signal), {
+        signal: controller.signal,
+        onProgress: completed => { if (refreshVersion.current === version) setProgress({ completed, total: all.length }); },
+        onResult: analysis => {
+          if (refreshVersion.current !== version) return;
+          for (const extra of analysesRef.current) if (!scanKeys.has(key(extra.asset))) found.set(key(extra.asset), extra);
+          found.set(key(analysis.asset), analysis);
+          const partial = [...found.values()].sort((a, b) => b.composite - a.composite);
+          analysesRef.current = partial;
+          setAnalyses(partial);
+        },
+      });
+      if (controller.signal.aborted || refreshVersion.current !== version) return;
+      const results = [...found.values()].sort((a, b) => b.composite - a.composite);
+      notifySignalChanges(before, results);
       analysesRef.current = results;
       setAnalyses(results);
-      setUpdatedAt(Date.now());
+      if (summary.succeeded) setUpdatedAt(Date.now());
+      if (summary.failed) setMarketNotice(summary.succeeded || results.length
+        ? `No se pudieron actualizar ${summary.failed} activos. Se muestran los datos disponibles y la caché identificada.`
+        : 'Las fuentes de mercado no respondieron. Puedes reintentar la carga en unos momentos.');
       // alertas personalizadas de señal
       const prices: Record<string, number> = {};
       const signals: Record<string, AssetAnalysis['signal']> = {};
       for (const a of results) { prices[a.asset.id] = a.price; signals[a.asset.id] = a.signal; }
       handleFiredAlerts(checkAlerts(alertsRef.current.map(x => ({ ...x })), prices, signals));
     } finally {
-      setLoading(false);
-      busy.current = false;
+      if (refreshVersion.current === version) {
+        if (!controller.signal.aborted) setLoading(false);
+        busy.current = false;
+      }
     }
   }, [handleFiredAlerts]);
 
@@ -192,7 +212,7 @@ export function useMarketData(userId: number | null) {
     refresh();
     const t1 = setInterval(refresh, 5 * 60 * 1000);
     const t2 = setInterval(tick, 30 * 1000);
-    return () => { clearInterval(t1); clearInterval(t2); };
+    return () => { clearInterval(t1); clearInterval(t2); refreshAbort.current?.abort(); };
   }, [refresh, tick]);
 
   const addAsset = useCallback(async (asset: Asset): Promise<AssetAnalysis | null> => {
@@ -206,7 +226,9 @@ export function useMarketData(userId: number | null) {
     try {
       const analysis = await analyzeAsset(asset, {});
       if (analysis) {
-        setAnalyses(prev => [...prev, analysis].sort((x, y) => y.composite - x.composite));
+        const next = [...analysesRef.current.filter(a => a.asset.id !== asset.id || a.asset.assetClass !== asset.assetClass), analysis].sort((x, y) => y.composite - x.composite);
+        analysesRef.current = next;
+        setAnalyses(next);
         return analysis;
       }
     } catch { /* fallo */ }
@@ -258,5 +280,5 @@ export function useMarketData(userId: number | null) {
     if (userId && target) removeAlertMut.mutate({ assetId: target.assetId, kind: target.kind });
   }, [userId, removeAlertMut.mutate]);
 
-  return { analyses, loading, quoteCount: analyses.filter(a => a.dataSource === 'quote').length, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition };
+  return { analyses, loading, marketNotice, progress, quoteCount: analyses.filter(a => a.dataSource === 'quote').length, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition };
 }
