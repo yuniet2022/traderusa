@@ -28,7 +28,7 @@ El registro requiere un código de acceso creado por un administrador. No hay un
 
 ## Despliegue en Railway
 
-La guía [deploy/RAILWAY.md](deploy/RAILWAY.md) configura la aplicación desde GitHub y MySQL en el mismo proyecto. Incluye las variables necesarias, la creación automática del primer administrador y un dominio HTTPS de Railway. `railway.json` establece la construcción con Docker, la inicialización previa al despliegue y la comprobación de salud. Los siguientes despliegues conservan las cuentas existentes; los cambios de esquema requieren migraciones revisadas.
+La guía [deploy/RAILWAY.md](deploy/RAILWAY.md) configura la aplicación desde GitHub y MySQL en el mismo proyecto. Incluye las variables necesarias, la creación automática del primer administrador y un dominio HTTPS de Railway. `railway.json` establece la construcción con Docker, la inicialización previa al despliegue y la comprobación de salud. El servidor también prepara la base al arrancar en Railway antes de aceptar peticiones. Los siguientes despliegues conservan las cuentas existentes; los cambios de esquema requieren migraciones revisadas.
 
 ## Despliegue en DigitalOcean
 

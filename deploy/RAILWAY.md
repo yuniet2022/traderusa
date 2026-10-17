@@ -31,7 +31,7 @@ El contenedor ya establece `NODE_ENV=production`. Railway proporciona `PORT`; la
 ## 3. Desplegar y abrir la web
 
 1. Aplica las variables y despliega el servicio TraderUSA.
-2. El paso **pre-deploy** ejecuta `node dist/init-database.js && node dist/create-admin.js --if-needed`. Crea las tablas que faltan y el administrador inicial. Si faltan las credenciales iniciales o la conexión falla, el despliegue se detiene.
+2. El paso **pre-deploy** ejecuta `node dist/init-database.js && node dist/create-admin.js --if-needed`. Crea las tablas que faltan y el administrador inicial. Además, el servidor repite esta preparación al arrancar cuando Railway proporciona `RAILWAY_ENVIRONMENT_ID`; así comprueba la base de su propio entorno aunque se haya omitido el paso pre-deploy. Las operaciones son repetibles y conservan las cuentas existentes. Si faltan las credenciales iniciales o la conexión falla, la web no arranca.
 3. En **Settings → Networking**, genera un dominio público para la aplicación. Usa el puerto asignado por Railway. La dirección `https://…up.railway.app` incluye HTTPS; las cookies de sesión requieren HTTPS.
 4. Abre la web, inicia sesión con el administrador y comprueba que puedes guardar una posición y verla después de recargar. El administrador puede crear códigos de acceso para registrar otras cuentas.
 5. Después de verificar el acceso, elimina `TRADER_ADMIN_USER` y `TRADER_ADMIN_PASSWORD` de las variables y aplica el cambio. En los siguientes despliegues el administrador existente se conserva, sin necesitar esas credenciales.
@@ -49,6 +49,7 @@ Mantén estable `APP_SECRET`: cambiarlo invalida las sesiones. Usa una sola rép
 ## Si falla
 
 - **Error de consulta al iniciar sesión:** consulta los logs de ejecución de TraderUSA y busca `[API_ERROR]`. Se registra el procedimiento y el código de la causa, sin consultas ni parámetros. `ER_NO_SUCH_TABLE` indica que faltan tablas (revisa el paso pre-deploy); `ER_ACCESS_DENIED_ERROR` indica credenciales o permisos; `ENOTFOUND` indica resolución del host; `ECONNREFUSED` indica que la conexión fue rechazada. Comparte únicamente esa línea para diagnosticar el fallo.
+- **Preparación al arrancar:** después de `[STARTUP_SETUP]` deben aparecer `Tablas de TraderUSA listas.` y la creación o conservación del administrador antes de `Server running`. Si aparece `[STARTUP_SETUP_FAILED]`, corrige el problema indicado en las líneas anteriores. Conserva `TRADER_ADMIN_USER` y `TRADER_ADMIN_PASSWORD` hasta haber creado el primer administrador.
 - **Pre-deploy / conexión:** confirma que MySQL está listo y que `DATABASE_URL` referencia `MySQL.MYSQL_URL`. Después vuelve a desplegar.
 - **Credenciales iniciales:** configura las dos variables `TRADER_ADMIN_*` si todavía no existe un administrador. El inicializador no convierte usuarios existentes en administradores ni restablece contraseñas.
 - **Esquema incompatible:** revisa la base y aplica una migración adecuada. No borres el volumen para intentar arreglarlo.
