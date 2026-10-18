@@ -166,7 +166,8 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
   }
 
   async function history(assetClass: AssetClass, id: string, tf: MarketTimeframe = 'scan'): Promise<CandleHistory> {
-    const result = await remember(`h:${assetClass}:${id}:${tf}`, ['scan', '1d', '1wk'].includes(tf) ? 300_000 : 30_000, 86_400_000, async () => {
+    const ttl = tf === 'scan' ? 300_000 : 5_000;
+    const result = await remember(`h:${assetClass}:${id}:${tf}`, ttl, 86_400_000, async () => {
       const signal = AbortSignal.timeout(12_000);
       const cfg = TF[tf];
       const minimum = tf === 'scan' ? 60 : 20;
@@ -196,14 +197,27 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
           return rows.map(k => ({ time: Number(k[0]) / 1000, open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) }));
         } });
       }
-      sources.push({ name: 'Yahoo Finance', load: async () => yahooCandles(await yahoo(id, assetClass, cfg.range, cfg.yahoo, signal)) });
+      let priceAsOf: number | undefined;
+      sources.push({ name: 'Yahoo Finance', load: async () => {
+        const data = await yahoo(id, assetClass, cfg.range, cfg.yahoo, signal);
+        const timestamp = data.chart?.result?.[0]?.meta?.regularMarketTime;
+        priceAsOf = timestamp && Number.isFinite(timestamp) ? timestamp * 1000 : undefined;
+        return yahooCandles(data);
+      } });
+      // A daily chart needs today's partial candle when available. Stooq's
+      // daily closes remain a fallback and the scanner's original first source.
+      if (assetClass === 'stock' && tf !== 'scan') sources.reverse();
       for (const source of sources) {
-        try { return { candles: cleanCandles(await source.load(), minimum), source: source.name }; }
+        try { return {
+          candles: cleanCandles(await source.load(), minimum), source: source.name,
+          fetchedAt: now(), priceAsOf: source.name === 'Yahoo Finance' ? priceAsOf : undefined,
+          dailyCloseOnly: source.name === 'Stooq',
+        }; }
         catch { if (signal.aborted) break; }
       }
       throw new MarketUnavailable('No history providers available');
     });
-    return { ...result.value, cached: result.cached };
+    return { ...result.value, cached: result.cached, stale: now() - result.value.fetchedAt >= ttl };
   }
 
   async function quote(assetClass: AssetClass, id: string): Promise<Quote> {

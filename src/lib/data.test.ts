@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadCandles, loadQuotes, loadTimeframeCandles } from './data';
+import { loadCandles, loadQuotes, loadTimeframeCandles, loadTimeframeHistory } from './data';
 import { fetchLiveStock } from './live';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -52,5 +52,16 @@ describe('same-origin market client', () => {
     fetchMock.mockResolvedValue(Response.json({ candles, source: 'Kraken', cached: false }));
     expect(await loadTimeframeCandles({ id: 'BTC', symbol: 'BTC', name: 'Bitcoin', assetClass: 'crypto' }, '5m')).toEqual(candles);
     expect(String(fetchMock.mock.calls[0][0])).toContain('timeframe=5m');
+  });
+  it('preserves chart metadata and allows cancellation when the chart changes', async () => {
+    const history = { candles, source: 'Yahoo Finance', cached: true, fetchedAt: now - 120_000, priceAsOf: now - 900_000, stale: true };
+    fetchMock.mockResolvedValueOnce(Response.json(history));
+    expect(await loadTimeframeHistory({ id: 'AAPL', symbol: 'AAPL', name: 'Apple', assetClass: 'stock' }, '1d')).toEqual(history);
+    fetchMock.mockImplementation((_, init) => new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })));
+    const controller = new AbortController();
+    const pending = loadTimeframeHistory({ id: 'AAPL', symbol: 'AAPL', name: 'Apple', assetClass: 'stock' }, '1m', controller.signal);
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort(); await rejected;
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

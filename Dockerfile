@@ -7,6 +7,7 @@ COPY . .
 RUN npm run build
 RUN ./node_modules/.bin/esbuild scripts/create-admin.ts scripts/init-database.ts --platform=node --bundle --format=esm --outdir=dist --banner:js="import { createRequire } from 'node:module';const require = createRequire(import.meta.url);"
 RUN cp deploy/schema.sql dist/schema.sql
+RUN cp deploy/002-paper-trading.sql dist/002-paper-trading.sql
 
 FROM node:24-alpine AS runtime
 WORKDIR /app

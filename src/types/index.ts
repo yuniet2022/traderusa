@@ -98,4 +98,10 @@ export interface CandleHistory {
   candles: Candle[];
   source: string;
   cached: boolean;
+  /** Provider response receipt time; retained when a cached response is served. */
+  fetchedAt?: number;
+  /** Last market observation time, only when the provider supplies it. */
+  priceAsOf?: number;
+  stale?: boolean;
+  dailyCloseOnly?: boolean;
 }

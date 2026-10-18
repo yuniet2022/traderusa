@@ -51,7 +51,9 @@ export const TIMEFRAMES: { id: Timeframe; label: string }[] = [
   { id: '1m', label: '1 min' }, { id: '5m', label: '5 min' }, { id: '15m', label: '15 min' },
   { id: '1h', label: '1 h' }, { id: '1d', label: '1 día' }, { id: '1wk', label: '1 sem' },
 ];
-export async function loadTimeframeCandles(asset: Asset, timeframe: Timeframe): Promise<Candle[]> {
-  const history = await marketJSON<CandleHistory>('history', { assetClass: asset.assetClass, id: asset.id, timeframe });
-  return history.candles;
+export async function loadTimeframeHistory(asset: Asset, timeframe: Timeframe, signal?: AbortSignal): Promise<CandleHistory> {
+  return marketJSON<CandleHistory>('history', { assetClass: asset.assetClass, id: asset.id, timeframe }, signal);
+}
+export async function loadTimeframeCandles(asset: Asset, timeframe: Timeframe, signal?: AbortSignal): Promise<Candle[]> {
+  return (await loadTimeframeHistory(asset, timeframe, signal)).candles;
 }

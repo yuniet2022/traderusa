@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dashboard } from '@/sections/Dashboard';
 import { AssetDetail } from '@/sections/AssetDetail';
@@ -14,6 +14,8 @@ import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import type { Asset, AssetAnalysis } from '@/types';
 import { Radar, BookOpen, LayoutDashboard, LogOut } from 'lucide-react';
+
+const TradingLab = lazy(() => import('@/sections/TradingLab').then(module => ({ default: module.TradingLab })));
 
 export default function Terminal({ user }: { user: SessionUser }) {
   const { analyses, loading, marketNotice, progress, quoteCount, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition } = useMarketData(user.id);
@@ -110,13 +112,14 @@ export default function Terminal({ user }: { user: SessionUser }) {
           </div>
         )}
         <Tabs defaultValue="dashboard">
-          <TabsList className="mb-5">
+          <TabsList className="mb-5 h-auto max-w-full flex-wrap justify-start">
             <TabsTrigger value="dashboard" className="gap-1.5">
               <LayoutDashboard size={14} /> Señales
             </TabsTrigger>
             <TabsTrigger value="research" className="gap-1.5">
               <BookOpen size={14} /> Investigación
             </TabsTrigger>
+            <TabsTrigger value="laboratory">Planes y simulación</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard">
             <Dashboard
@@ -134,6 +137,11 @@ export default function Terminal({ user }: { user: SessionUser }) {
           </TabsContent>
           <TabsContent value="research">
             <Research />
+          </TabsContent>
+          <TabsContent value="laboratory">
+            <Suspense fallback={<p className="text-sm text-zinc-400">Cargando planes y simulación…</p>}>
+              <TradingLab analyses={analyses} />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </main>

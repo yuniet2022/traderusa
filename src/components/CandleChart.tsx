@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
-import type { Asset, Candle } from '@/types';
+import type { Asset } from '@/types';
 import { sma, bollinger } from '@/lib/indicators';
-import { loadTimeframeCandles, TIMEFRAMES, type Timeframe } from '@/lib/data';
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { TIMEFRAMES, type Timeframe } from '@/lib/data';
+import { useState } from 'react';
+import { Loader2, RefreshCw } from 'lucide-react';
+import { useCandleHistory } from '@/hooks/useCandleHistory';
 import { cn } from '@/lib/utils';
 
 interface Props {
   asset: Asset;
   height?: number;
+  initialTimeframe?: Timeframe;
 }
 
 const fmt = (v: number) => v >= 1000 ? v.toLocaleString('es', { maximumFractionDigits: 0 })
@@ -22,24 +24,10 @@ function fmtTime(t: number, tf: Timeframe): string {
   return d.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function CandleChart({ asset, height = 300 }: Props) {
-  const [tf, setTf] = useState<Timeframe>('1d');
-  const [candles, setCandles] = useState<Candle[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async (t: Timeframe) => {
-    setLoading(true); setError(null);
-    try {
-      const c = await loadTimeframeCandles(asset, t);
-      setCandles(c);
-    } catch {
-      setCandles(null);
-      setError('Sin datos reales en esta temporalidad para este activo.');
-    } finally { setLoading(false); }
-  }, [asset.id, asset.assetClass]);
-
-  useEffect(() => { load(tf); }, [tf, load]);
+export function CandleChart({ asset, height = 300, initialTimeframe = '1d' }: Props) {
+  const [tf, setTf] = useState<Timeframe>(initialTimeframe);
+  const { history, loading, error, refresh } = useCandleHistory(asset, tf);
+  const candles = history?.candles ?? null;
 
   const W = 800, H = height, padL = 4, padR = 56, padT = 8;
   const volH = 34, padB = 18;
@@ -93,14 +81,14 @@ export function CandleChart({ asset, height = 300 }: Props) {
 
     const last = data[n - 1];
     return { data, x, y, lo, hi, step, bodyW, maxVol, s20: line(s20), s50: line(s50), bandFill, bbU: line(bbU), bbL: line(bbL), last };
-  }, [candles, H]);
+  }, [candles, priceH]);
 
   return (
     <div>
       {/* Selector de temporalidad */}
       <div className="flex items-center gap-1 px-1 pb-2 flex-wrap">
         {TIMEFRAMES.map(t => (
-          <button key={t.id} onClick={() => setTf(t.id)}
+          <button key={t.id} onClick={() => setTf(t.id)} aria-pressed={tf === t.id}
             className={cn(
               'px-2 py-0.5 rounded text-[11px] font-medium transition-colors border',
               tf === t.id
@@ -111,21 +99,36 @@ export function CandleChart({ asset, height = 300 }: Props) {
           </button>
         ))}
         {loading && <Loader2 size={13} className="text-zinc-500 animate-spin ml-2" />}
+        <button type="button" onClick={refresh} disabled={loading} aria-label="Actualizar gráfico ahora" title="Actualizar gráfico ahora"
+          className="rounded border border-zinc-700 p-1 text-zinc-400 hover:text-zinc-100 disabled:opacity-40">
+          <RefreshCw size={12} />
+        </button>
         <span className="ml-auto text-[10px] text-zinc-600">
           {view ? `${fmtTime(view.data[0].time, tf)} → ${fmtTime(view.last.time, tf)}` : ''}
         </span>
       </div>
 
+      <div className="px-1 pb-2 space-y-1 text-[10px] text-zinc-400" role="status" aria-live="polite">
+        <p>Consulta automática cada 10 s con la pestaña visible.</p>
+        {history && <>
+          <p>{history.source} · {history.fetchedAt ? `Fuente consultada: ${new Date(history.fetchedAt).toLocaleString('es')}` : 'Hora de consulta a la fuente no informada'}{history.cached ? ' · Caché compartida' : ''}</p>
+          <p>{history.priceAsOf ? `Hora del precio del proveedor: ${new Date(history.priceAsOf).toLocaleString('es')}` : 'El proveedor no informa la hora de la última operación.'}</p>
+          <p>Última vela: {new Date(history.candles.at(-1)!.time * 1000).toLocaleString('es')} (inicio del intervalo).</p>
+          {history.dailyCloseOnly && <p className="text-amber-300">Fuente de cierres diarios; no incluye los movimientos de la sesión en curso.</p>}
+          {history.stale && <p className="text-amber-300">La fuente no ha podido actualizarse. Se muestran datos anteriores en caché.</p>}
+        </>}
+      </div>
+
       {error && (
-        <p className="text-xs text-red-400 px-1 py-6 text-center">{error}</p>
+        <p role="alert" className="text-xs text-amber-300 px-1 py-2">{error}</p>
       )}
 
-      {!error && !view && loading && (
+      {!view && loading && (
         <div className="flex items-center justify-center text-zinc-600 text-xs" style={{ height }}>Cargando velas reales…</div>
       )}
 
       {view && (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} role="img" aria-label={`Velas de ${asset.symbol}, ${TIMEFRAMES.find(t => t.id === tf)?.label}`}>
           {/* rejilla horizontal */}
           {[0.25, 0.5, 0.75].map(f => {
             const yv = padT + f * priceH;

@@ -50,7 +50,7 @@ describe('server market sources', () => {
     clock += 301_000;
     fetcher.mockImplementation(async () => new Response('', { status: 429 }));
     const stale = await service.history('stock', 'AAPL');
-    expect(stale).toEqual({ ...first, cached: true });
+    expect(stale).toEqual({ ...first, cached: true, stale: true });
     expect(stale.candles.at(-1)?.time).toBe(Date.parse(`${dates.at(-1)!.toISOString().slice(0, 10)}T00:00:00Z`) / 1000);
   });
 
@@ -140,10 +140,44 @@ describe('server market sources', () => {
 
   it('aggregates weekly OHLC with actual volumes and Monday UTC timestamps', async () => {
     const daily = Array.from({ length: 200 }, (_, i) => `${new Date(now - (200 - i) * 86_400_000).toISOString().slice(0, 10)},100,105,95,102,2500`);
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('Date,Open,High,Low,Close,Volume\n' + daily.join('\n')));
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async input => String(input).includes('yahoo.com')
+      ? new Response('', { status: 404 })
+      : new Response('Date,Open,High,Low,Close,Volume\n' + daily.join('\n')));
     const result = await createMarketService({ fetch: fetcher }).history('stock', 'AAPL', '1wk');
     expect(result.candles.length).toBeGreaterThan(20);
     expect(result.candles.every(c => new Date(c.time * 1000).getUTCDay() === 1 && c.open === 100 && c.high === 105 && c.low === 95 && c.close === 102)).toBe(true);
     expect(result.candles.reduce((total, candle) => total + candle.volume, 0)).toBe(200 * 2500);
+    expect(result.dailyCloseOnly).toBe(true);
+  });
+
+  it('refreshes daily chart candles after five seconds and preserves the actual observation time', async () => {
+    let clock = now;
+    const response = yahoo();
+    const payload = { chart: { result: [{ ...response.chart.result[0], meta: { regularMarketTime: now / 1000 - 900 } }] } };
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(payload));
+    const service = createMarketService({ fetch: fetcher, now: () => clock });
+    const first = await service.history('stock', 'AAPL', '1d');
+    expect(first).toMatchObject({ source: 'Yahoo Finance', fetchedAt: now, priceAsOf: now - 900_000, dailyCloseOnly: false, stale: false });
+    expect(String(fetcher.mock.calls[0][0])).toContain('query1.finance.yahoo.com');
+    clock += 4000;
+    expect(await service.history('stock', 'AAPL', '1d')).toEqual({ ...first, cached: true });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    clock += 2000;
+    expect(await service.history('stock', 'AAPL', '1d')).toMatchObject({ fetchedAt: clock, priceAsOf: now - 900_000, cached: false });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not change the provider receipt time when serving stale chart candles', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let clock = now;
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ error: [], result: { XXBTZUSD: dates.map(d => [d.getTime() / 1000, '100', '105', '95', '102', '101', '2500', 50]) } }));
+    const service = createMarketService({ fetch: fetcher, now: () => clock });
+    const first = await service.history('crypto', 'BTC', '1m');
+    clock += 6000;
+    fetcher.mockImplementation(async () => new Response('', { status: 429 }));
+    const stale = await service.history('crypto', 'BTC', '1m');
+    expect(stale).toEqual({ ...first, cached: true, stale: true });
+    expect(stale.fetchedAt).toBe(now);
+    expect(stale.priceAsOf).toBeUndefined();
   });
 });

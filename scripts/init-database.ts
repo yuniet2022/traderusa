@@ -2,11 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { getDb } from '../api/queries/connection';
 import type { RowDataPacket } from 'mysql2/promise';
 
-// This is the initial baseline, not a migration runner. Existing tables are never altered.
+// Baseline plus explicitly reviewed additive tables. Existing tables are never altered.
 async function main() {
   const baseline = await readFile(new URL('./schema.sql', import.meta.url), 'utf8');
-  const statements = baseline.replace(/^--.*$/gm, '').split(';').map(sql => sql.trim()).filter(Boolean);
-  if (statements.length !== 4 || statements.some(sql => !/^CREATE TABLE `tr_\w+` \(/.test(sql))) {
+  const additions = await readFile(new URL('./002-paper-trading.sql', import.meta.url), 'utf8');
+  const statements = `${baseline}\n${additions}`.replace(/^--.*$/gm, '').split(';').map(sql => sql.trim()).filter(Boolean);
+  const expected = ['tr_users', 'tr_access_codes', 'tr_positions', 'tr_alerts', 'tr_paper_accounts', 'tr_paper_trades'];
+  if (statements.length !== expected.length || statements.some(sql => !/^CREATE TABLE `tr_\w+` \(/.test(sql)) ||
+    !expected.every(table => statements.some(sql => sql.startsWith(`CREATE TABLE \`${table}\` (`)))) {
     throw new Error('Invalid baseline');
   }
   const db = getDb();

@@ -8,6 +8,7 @@ import {
   json,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
+import type { PaperSnapshot } from '@contracts/trading';
 
 /** Usuarios con login por usuario + contraseña (hash scrypt). */
 export const users = mysqlTable("tr_users", {
@@ -77,3 +78,23 @@ export const alerts = mysqlTable(
 );
 
 export type Alert = typeof alerts.$inferSelect;
+
+/** Virtual capital is initialized once; it is never a brokerage balance. */
+export const paperAccounts = mysqlTable('tr_paper_accounts', {
+  userId: bigint('userId', { mode: 'number', unsigned: true }).primaryKey(),
+  initialCapital: double('initialCapital').notNull(),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+
+/** Append-only plans; a close updates only the exit fields once. */
+export const paperTrades = mysqlTable('tr_paper_trades', {
+  id: bigint('id', { mode: 'number', unsigned: true }).autoincrement().primaryKey(),
+  userId: bigint('userId', { mode: 'number', unsigned: true }).notNull(),
+  requestId: varchar('requestId', { length: 36 }).notNull(),
+  plan: json('plan').$type<PaperSnapshot>().notNull(),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  closedAt: timestamp('closedAt'),
+  exitPrice: double('exitPrice'),
+  net: double('net'),
+  exitReason: varchar('exitReason', { length: 32 }),
+}, t => [uniqueIndex('uq_paper_user_request').on(t.userId, t.requestId)]);
