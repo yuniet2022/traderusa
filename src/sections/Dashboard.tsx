@@ -62,7 +62,7 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
       {marketNotice && <p role="status" className="text-xs text-amber-300 rounded-md border border-amber-900/60 bg-amber-950/20 px-3 py-2">{marketNotice}</p>}
 
       {/* TOP 10 compras y ventas */}
-      {!loading || analyses.length > 0 ? <Top10 analyses={analyses} positions={positions} onSelect={onSelect} /> : null}
+      {analyses.length > 0 ? <Top10 analyses={analyses} positions={positions} onSelect={onSelect} /> : null}
 
       {/* Tabla principal (estilo Yahoo most-active) */}
       <div className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900/50 overflow-hidden">

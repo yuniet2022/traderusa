@@ -44,7 +44,7 @@ Mantén activados los despliegues desde GitHub para la rama `main`. Al subir un 
 
 La inicialización aplica el esquema base y la creación aditiva revisada `002-paper-trading.sql` para las dos tablas del diario simulado (ambos archivos se incluyen en la imagen): **no modifica columnas existentes ni sustituye las migraciones**. Comprueba que existen las columnas necesarias; no verifica todos sus tipos ni índices. Los cambios futuros de esquema requieren migraciones revisadas y copia de seguridad. No uses `db:push` como comando de despliegue.
 
-Mantén estable `APP_SECRET`: cambiarlo invalida las sesiones. Usa una sola réplica mientras el límite de intentos de acceso siga en memoria. Las consultas de mercado salen desde el servidor hacia Stooq, Yahoo Finance, Kraken y Binance; el navegador usa `/api/market/*`. Railway necesita salida HTTPS a esas fuentes. No se necesitan nuevas variables ni claves para las fuentes públicas incluidas; su acceso y disponibilidad no están garantizados.
+Mantén estable `APP_SECRET`: cambiarlo invalida las sesiones. Usa una sola réplica mientras el límite de intentos de acceso siga en memoria. Las consultas de mercado salen desde el servidor hacia Stooq, los servidores query1/query2 de Yahoo Finance, Kraken, Coinbase Exchange y Binance; el navegador usa `/api/market/*`. Railway necesita salida HTTPS a esas fuentes. No se necesitan nuevas variables ni claves para las fuentes públicas incluidas; su acceso y disponibilidad no están garantizados.
 
 ## Si falla
 

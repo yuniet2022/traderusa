@@ -6,5 +6,6 @@ export function PriceDataStatus({ analysis }: { analysis: AssetAnalysis }) {
     : new Date(analysis.priceAsOf).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' });
   return <span className="block text-[11px] leading-relaxed font-sans font-normal text-zinc-400" title={`Consulta local: ${new Date(analysis.quoteReceivedAt ?? analysis.updatedAt).toLocaleString('es')}`}>
     {state} · {analysis.priceSource} · {time}
+    {analysis.historyStale && <span className="block text-amber-300">Señal con historial anterior; pendiente de actualizar.</span>}
   </span>;
 }

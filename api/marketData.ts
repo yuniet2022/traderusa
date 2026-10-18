@@ -4,6 +4,11 @@ import { WATCHLIST } from '../contracts/watchlist';
 import { setTimeout as delay } from 'node:timers/promises';
 
 export class MarketUnavailable extends Error {}
+function networkCode(error: unknown): string {
+  const code = error instanceof Error ? (error.cause as { code?: unknown } | undefined)?.code : undefined;
+  return typeof code === 'string' && new Set(['ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH', 'EHOSTUNREACH', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'DEPTH_ZERO_SELF_SIGNED_CERT']).has(code)
+    ? code : 'NETWORK_OR_TIMEOUT';
+}
 type Entry = { value: unknown; at: number; ttl: number };
 type Chart = { chart?: { result?: { timestamp?: number[]; meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number; regularMarketTime?: number; instrumentType?: string; longName?: string; shortName?: string }; indicators?: { quote?: { open?: (number | null)[]; high?: (number | null)[]; low?: (number | null)[]; close?: (number | null)[]; volume?: (number | null)[] }[] } }[] } };
 const TF = {
@@ -63,8 +68,15 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
   const failed = new Map<string, number>();
   const cooldown = new Map<string, number>();
   const nextRequest = new Map<string, number>();
+  const logged = new Map<string, number>();
   let active = 0;
   const waiting: { resume: () => void; signal: AbortSignal }[] = [];
+  function report(source: string, code: string) {
+    const key = `${source}:${code}`;
+    if ((logged.get(key) ?? 0) > now()) return;
+    logged.set(key, now() + 60_000);
+    console.warn('[MARKET_SOURCE_ERROR]', JSON.stringify({ source, code }));
+  }
 
   async function acquire(signal: AbortSignal) {
     signal.throwIfAborted();
@@ -90,7 +102,7 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
     try {
       signal.throwIfAborted();
       if ((cooldown.get(host) ?? 0) > now()) throw new MarketUnavailable('Provider cooling down');
-      const spacing = options.spacingMs ?? ({ 'api.kraken.com': 1100, 'stooq.com': 200, 'query1.finance.yahoo.com': 250, 'api.binance.com': 100 } as Record<string, number>)[host] ?? 250;
+      const spacing = options.spacingMs ?? ({ 'api.kraken.com': 1100, 'stooq.com': 200, 'query1.finance.yahoo.com': 250, 'query2.finance.yahoo.com': 250, 'api.binance.com': 100, 'api.exchange.coinbase.com': 350 } as Record<string, number>)[host] ?? 250;
       const start = Math.max(now(), nextRequest.get(host) ?? 0);
       nextRequest.set(host, start + spacing);
       if (start > now()) await delay(start - now(), undefined, { signal });
@@ -101,8 +113,9 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
         if ([401, 403, 429, 451].includes(res.status)) {
           const retry = Number(res.headers.get('retry-after'));
           cooldown.set(host, now() + Math.min(600_000, Math.max(60_000, Number.isFinite(retry) ? retry * 1000 : 0)));
-          console.warn('[MARKET_SOURCE_ERROR]', JSON.stringify({ source: host, code: `HTTP_${res.status}` }));
         }
+        if (res.status >= 500) cooldown.set(host, now() + 15_000);
+        report(host, `HTTP_${res.status}`);
         await res.body?.cancel();
         throw new MarketUnavailable(`Provider HTTP ${res.status}`);
       }
@@ -124,7 +137,7 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
     } catch (error) {
       if (error instanceof Error && ['TimeoutError', 'AbortError', 'TypeError'].includes(error.name)) {
         cooldown.set(host, now() + 15_000);
-        console.warn('[MARKET_SOURCE_ERROR]', JSON.stringify({ source: host, code: 'NETWORK_OR_TIMEOUT' }));
+        report(host, networkCode(error));
       }
       throw error;
     } finally { release(); }
@@ -160,9 +173,38 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
   const krakenPair = (id: string) => `${({ BTC: 'XBT', DOGE: 'XDG' } as Record<string, string>)[id] ?? id}USD`;
   async function yahoo(id: string, assetClass: AssetClass, range: string, interval: string, signal: AbortSignal) {
     const symbol = assetClass === 'crypto' ? `${id}-USD` : id;
-    const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
-    url.search = new URLSearchParams({ range, interval }).toString();
-    return await upstream(url.toString(), signal) as Chart;
+    for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+      try {
+        const url = new URL(`https://${host}/v8/finance/chart/${encodeURIComponent(symbol)}`);
+        url.search = new URLSearchParams({ range, interval }).toString();
+        const data = await upstream(url.toString(), signal) as Chart;
+        if (data.chart?.result?.[0]) return data;
+      } catch { if (signal.aborted) break; }
+    }
+    throw new MarketUnavailable('Yahoo history unavailable');
+  }
+
+  async function coinbaseHistory(id: string, tf: MarketTimeframe, signal: AbortSignal): Promise<Candle[]> {
+    const granularity = (tf === '1wk' ? 1440 : TF[tf].kraken) * 60;
+    const end = Math.floor(now() / 1000 / granularity) * granularity;
+    const page = async (last: number, count: number) => {
+      const url = new URL(`https://api.exchange.coinbase.com/products/${encodeURIComponent(id)}-USD/candles`);
+      url.search = new URLSearchParams({ granularity: String(granularity),
+        start: new Date((last - (count - 1) * granularity) * 1000).toISOString(), end: new Date(last * 1000).toISOString() }).toString();
+      const data = await upstream(url.toString(), signal) as unknown;
+      if (!Array.isArray(data)) throw new MarketUnavailable('No Coinbase OHLC history');
+      return data.filter((r): r is unknown[] => Array.isArray(r) && r.length >= 6).map(r => ({
+        time: Number(r[0]), low: Number(r[1]), high: Number(r[2]), open: Number(r[3]), close: Number(r[4]), volume: Number(r[5]),
+      }));
+    };
+    const recent = await page(end, 300);
+    if (!recent.length) throw new MarketUnavailable('No Coinbase OHLC history');
+    // Daily scans need enough observations for the annual crypto indicators.
+    if (tf === 'scan' || tf === '1d') {
+      const oldest = Math.min(...recent.map(c => c.time));
+      return [...await page(oldest - granularity, 120), ...recent];
+    }
+    return tf === '1wk' ? weekly(recent.sort((a, b) => a.time - b.time)) : recent;
   }
 
   async function history(assetClass: AssetClass, id: string, tf: MarketTimeframe = 'scan'): Promise<CandleHistory> {
@@ -191,6 +233,7 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
           if (!Array.isArray(rows)) throw new MarketUnavailable('No OHLC history');
           return rows.map(k => ({ time: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[6]) }));
         } });
+        sources.push({ name: 'Coinbase Exchange', load: () => coinbaseHistory(id, tf, signal) });
         sources.push({ name: 'Binance', load: async () => {
           const rows = await upstream(`https://api.binance.com/api/v3/klines?symbol=${id}USDT&interval=${cfg.binance}&limit=420`, signal) as unknown[][];
           if (!Array.isArray(rows)) throw new MarketUnavailable('No OHLC history');
@@ -213,7 +256,10 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
           fetchedAt: now(), priceAsOf: source.name === 'Yahoo Finance' ? priceAsOf : undefined,
           dailyCloseOnly: source.name === 'Stooq',
         }; }
-        catch { if (signal.aborted) break; }
+        catch (error) {
+          if (!(error instanceof MarketUnavailable) && !(error instanceof Error && ['AbortError', 'TimeoutError', 'TypeError'].includes(error.name))) report(source.name, 'INVALID_RESPONSE');
+          if (signal.aborted) break;
+        }
       }
       throw new MarketUnavailable('No history providers available');
     });
@@ -230,6 +276,12 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
           if (data.error?.length || !Number.isFinite(price) || price <= 0) throw new MarketUnavailable('No quote');
           return { price, change24h: null, source: 'Kraken', receivedAt: now() };
         } catch { /* Try the next source within the same deadline. */ }
+        try {
+          const data = await upstream(`https://api.exchange.coinbase.com/products/${encodeURIComponent(id)}-USD/ticker`, signal) as { price?: string; time?: string };
+          const price = Number(data.price), asOf = data.time ? Date.parse(data.time) : NaN;
+          if (!Number.isFinite(price) || price <= 0) throw new MarketUnavailable('No Coinbase quote');
+          return { price, change24h: null, source: 'Coinbase Exchange', asOf: Number.isFinite(asOf) ? asOf : undefined, receivedAt: now() };
+        } catch { /* Try Yahoo within the same deadline. */ }
       }
       const data = await yahoo(id, assetClass, '1d', '5m', signal);
       const meta = data.chart?.result?.[0]?.meta;

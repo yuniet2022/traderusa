@@ -7,6 +7,14 @@ export async function scanMarket<T>(assets: Asset[], analyze: (asset: Asset, sig
   onProgress: (completed: number) => void;
   timeoutMs?: number;
 }) {
+  // A slow stock provider must not occupy every worker before crypto is attempted.
+  const stocks = assets.filter(a => a.assetClass === 'stock');
+  const crypto = assets.filter(a => a.assetClass === 'crypto');
+  const scheduled: Asset[] = [];
+  for (let i = 0; i < Math.max(stocks.length, crypto.length); i++) {
+    if (stocks[i]) scheduled.push(stocks[i]);
+    if (crypto[i]) scheduled.push(crypto[i]);
+  }
   const controller = new AbortController();
   const abort = () => controller.abort();
   options.signal.addEventListener('abort', abort, { once: true });
@@ -15,8 +23,8 @@ export async function scanMarket<T>(assets: Asset[], analyze: (asset: Asset, sig
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, options.timeoutMs ?? 45_000);
   let index = 0; let completed = 0; let succeeded = 0;
   async function worker() {
-    while (!controller.signal.aborted && index < assets.length) {
-      const asset = assets[index++];
+    while (!controller.signal.aborted && index < scheduled.length) {
+      const asset = scheduled[index++];
       try {
         const result = await new Promise<T | null>((resolve, reject) => {
           const cancel = () => reject(new DOMException('Scan cancelled', 'AbortError'));

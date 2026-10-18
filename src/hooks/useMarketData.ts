@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Asset, AssetAnalysis, Quote } from '@/types';
-import { WATCHLIST, loadCandles } from '@/lib/data';
+import { WATCHLIST, loadCachedCandles, loadCandles } from '@/lib/data';
 import { scanMarket } from '@/lib/marketRefresh';
 import { fetchLiveCrypto, fetchLiveStocks } from '@/lib/live';
 import { buildAssetAnalysis, repriceAnalysis } from '@/lib/analysis';
@@ -34,6 +34,7 @@ async function analyzeAsset(asset: Asset, quotes: Record<string, Quote>, previou
 function notifySignalChanges(previous: AssetAnalysis[], next: AssetAnalysis[]) {
   const prevMap = new Map(previous.map(a => [`${a.asset.assetClass}:${a.asset.id}`, a.signal]));
   for (const a of next) {
+    if (a.historyStale) continue;
     const prev = prevMap.get(`${a.asset.assetClass}:${a.asset.id}`);
     if (!prev || prev === a.signal) continue;
     const isBuy = a.signal === 'COMPRA' || a.signal === 'COMPRA FUERTE';
@@ -57,6 +58,8 @@ export function useMarketData(userId: number | null) {
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [marketNotice, setMarketNotice] = useState<string | null>(null);
+  const [retrySoon, setRetrySoon] = useState(false);
+  const retryAt = useRef(0);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [alerts, setAlerts] = useState<AlertRule[]>(() => loadAlerts());
   const [portfolio, setPortfolio] = useState<Position[]>(() => loadPortfolio());
@@ -134,6 +137,7 @@ export function useMarketData(userId: number | null) {
     const controller = new AbortController();
     refreshAbort.current = controller;
     setLoading(true);
+    setRetrySoon(false);
     setMarketNotice(null);
     try {
       const key = (asset: Asset) => `${asset.assetClass}:${asset.id}`;
@@ -142,7 +146,21 @@ export function useMarketData(userId: number | null) {
       const before = analysesRef.current;
       const previous = new Map(before.map(a => [key(a.asset), a]));
       const scanKeys = new Set(all.map(key));
-      const found = new Map(before.map(a => [key(a.asset), { ...a, dataSource: 'cached' as const } as AssetAnalysis]));
+      const found = new Map(before.map(a => [key(a.asset), { ...a, dataSource: 'cached' as const, historyStale: true } as AssetAnalysis]));
+      for (const asset of all) {
+        if (found.has(key(asset))) continue;
+        const stored = loadCachedCandles(asset);
+        if (stored) {
+          try { found.set(key(asset), buildAssetAnalysis(asset, stored)); }
+          catch { /* Ignore invalid or incomplete old observations. */ }
+        }
+      }
+      if (found.size) {
+        const saved = [...found.values()].sort((a, b) => b.composite - a.composite);
+        analysesRef.current = saved;
+        setAnalyses(saved);
+        if (saved.some(a => a.historyStale)) setMarketNotice('Se muestran datos guardados mientras se intenta actualizar el mercado. Comprueba la fecha de cada activo.');
+      }
       const summary = await scanMarket(all, (asset, signal) => analyzeAsset(asset, {}, previous.get(key(asset)), signal), {
         signal: controller.signal,
         onProgress: completed => { if (refreshVersion.current === version) setProgress({ completed, total: all.length }); },
@@ -160,14 +178,20 @@ export function useMarketData(userId: number | null) {
       notifySignalChanges(before, results);
       analysesRef.current = results;
       setAnalyses(results);
-      if (summary.succeeded) setUpdatedAt(Date.now());
-      if (summary.failed) setMarketNotice(summary.succeeded || results.length
-        ? `No se pudieron actualizar ${summary.failed} activos. Se muestran los datos disponibles y la caché identificada.`
-        : 'Las fuentes de mercado no respondieron. Puedes reintentar la carga en unos momentos.');
+      if (summary.succeeded && results.some(a => !a.historyStale)) setUpdatedAt(Date.now());
+      const staleCount = results.filter(a => a.historyStale).length;
+      const degraded = summary.failed > 0 || staleCount > 0;
+      setRetrySoon(degraded);
+      if (degraded) {
+        retryAt.current = Date.now() + 60_000;
+        setMarketNotice(results.length
+          ? `Hay activos sin actualizar${staleCount ? ` (${staleCount} con historial anterior)` : ''}. Se conservan las fechas originales. Reintento automático en un minuto.`
+          : 'No se pudo obtener historial de las fuentes de mercado. Reintentaremos automáticamente en un minuto; también puedes pulsar Reintentar carga.');
+      } else setMarketNotice(null);
       // alertas personalizadas de señal
       const prices: Record<string, number> = {};
       const signals: Record<string, AssetAnalysis['signal']> = {};
-      for (const a of results) { prices[a.asset.id] = a.price; signals[a.asset.id] = a.signal; }
+      for (const a of results) { if (!a.historyStale) { prices[a.asset.id] = a.price; signals[a.asset.id] = a.signal; } }
       handleFiredAlerts(checkAlerts(alertsRef.current.map(x => ({ ...x })), prices, signals));
     } finally {
       if (refreshVersion.current === version) {
@@ -201,7 +225,7 @@ export function useMarketData(userId: number | null) {
       setUpdatedAt(Date.now());
       const prices: Record<string, number> = {};
       const signals: Record<string, AssetAnalysis['signal']> = {};
-      for (const a of next) { prices[a.asset.id] = a.price; signals[a.asset.id] = a.signal; }
+      for (const a of next) { if (!a.historyStale) { prices[a.asset.id] = a.price; signals[a.asset.id] = a.signal; } }
       handleFiredAlerts(checkAlerts(alertsRef.current.map(x => ({ ...x })), prices, signals));
     } finally {
       tickBusy.current = false;
@@ -214,6 +238,23 @@ export function useMarketData(userId: number | null) {
     const t2 = setInterval(tick, 30 * 1000);
     return () => { clearInterval(t1); clearInterval(t2); refreshAbort.current?.abort(); };
   }, [refresh, tick]);
+
+  useEffect(() => {
+    if (!retrySoon) return;
+    const resume = () => {
+      if (document.visibilityState !== 'hidden' && navigator.onLine && Date.now() >= retryAt.current) void refresh();
+    };
+    const timer = setTimeout(resume, 60_000);
+    window.addEventListener('online', resume);
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('online', resume);
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', resume);
+    };
+  }, [retrySoon, refresh]);
 
   const addAsset = useCallback(async (asset: Asset): Promise<AssetAnalysis | null> => {
     const exists = analysesRef.current.some(a => a.asset.id === asset.id && a.asset.assetClass === asset.assetClass);

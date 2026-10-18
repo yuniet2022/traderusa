@@ -23,6 +23,7 @@ function Row({ a, rank, onSelect }: { a: AssetAnalysis; rank: number; onSelect: 
           <span className="text-[10px] text-zinc-600 uppercase">{a.asset.assetClass === 'crypto' ? 'cripto' : 'acción'}</span>
         </div>
         <span className="text-xs text-zinc-400 truncate block">{a.asset.name}</span>
+        {a.historyStale && <span className="block text-[11px] text-amber-300">Historial anterior</span>}
       </div>
       <div className="shrink-0 text-right">
         <div className="font-mono text-sm">{fmtPrice(a.price)}</div>

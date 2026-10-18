@@ -4,7 +4,7 @@ Aplicación educativa de análisis técnico de acciones y criptomonedas. Incluye
 
 ## Desarrollo
 
-Requisitos: Node.js 24, npm 11 y MySQL/MariaDB con soporte de transacciones InnoDB. La configuración local se probó con MariaDB 11. El servidor necesita acceso HTTPS a `stooq.com`, `query1.finance.yahoo.com`, `api.kraken.com` y `api.binance.com`. El navegador consulta exclusivamente la API de mercado de la aplicación con su sesión; no requiere proxies CORS públicos.
+Requisitos: Node.js 24, npm 11 y MySQL/MariaDB con soporte de transacciones InnoDB. La configuración local se probó con MariaDB 11. El servidor necesita acceso HTTPS a `stooq.com`, `query1.finance.yahoo.com`, `query2.finance.yahoo.com`, `api.kraken.com`, `api.exchange.coinbase.com` y `api.binance.com`. El navegador consulta exclusivamente la API de mercado de la aplicación con su sesión; no requiere proxies CORS públicos.
 
 ```sh
 npm ci --registry=https://registry.npmjs.org --replace-registry-host=always
@@ -98,6 +98,16 @@ Existen incidencias previas de ESLint en otros componentes; una compilación cor
 - La fuerza direccional es una aproximación, no el ADX estándar. Los pesos son por estrategia y régimen; todavía no hay un ensemble con límites por familia.
 
 El motor diario del escáner sigue sin backtest validado, Sharpe ni estimación de rentabilidad. El laboratorio evalúa sus propias reglas sobre el historial disponible: sus métricas no validan las ocho estrategias del escáner ni predicen beneficios. Las referencias académicas de la pestaña Investigación explican conceptos; no son resultados de esta implementación. Antes de añadir rankings relativos, modelos ajustados por riesgo o LightGBM/XGBoost hacen falta datos limpios y evaluación cronológica fuera de muestra, con costos y un benchmark.
+
+## Recuperación cuando fallan las fuentes
+
+El historial de cripto usa Kraken y, como respaldo, Coinbase Exchange (OHLC públicos en USD), Binance y Yahoo. Coinbase pagina los intervalos diarios en solicitudes de como máximo 300 velas para conservar hasta 420 observaciones; las semanas se agrupan a partir de sus velas diarias disponibles. Yahoo intenta sus servidores `query1` y `query2`. Los respaldos siguen sujetos a disponibilidad y límites de cada proveedor; las pruebas de software usan respuestas controladas, no certifican el acceso desde Railway.
+
+El navegador conserva los historiales reales ya recibidos hasta 24 horas para recuperarlos durante un fallo, manteniendo origen, velas y fechas originales. El tiempo máximo se mide también desde la consulta original del servidor para no rejuvenecer datos almacenados. Las observaciones se identifican como anteriores y no disparan nuevas alertas. Una cotización nueva no elimina la advertencia si el historial aún no se ha actualizado. No se generan velas ni señales cuando no existe historial válido.
+
+Cuando la carga falla o conserva historiales anteriores, se reintenta al minuto mientras la pestaña está visible y hay conexión; también puede recuperarse al volver a la pestaña o a la red. El usuario puede actualizar manualmente. Una sesión inválida o una cancelación no se sustituye por una respuesta antigua.
+
+En Railway, consulta `[MARKET_SOURCE_ERROR]`: informa proveedor y código, incluidos HTTP 401/403/429/451, errores DNS, conexión o certificados, sin imprimir consultas, credenciales ni el mensaje privado de la excepción. Los mensajes repetidos se limitan por fuente/código. Un HTTP 5xx pausa brevemente la fuente; los rechazos y límites existentes conservan su pausa compartida. Si todos los proveedores están inaccesibles y no hay datos guardados, hace falta resolver el acceso desde el alojamiento o configurar una fuente con acceso autorizado; repetir la interfaz no restablece una fuente bloqueada.
 
 ## Autenticación
 

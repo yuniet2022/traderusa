@@ -48,7 +48,7 @@ export function buildAssetAnalysis(asset: Asset, history: CandleHistory, quote?:
     priceSource: usableQuote?.source ?? history.source,
     priceAsOf: usableQuote ? quoteAsOf : historyAsOf,
     quoteReceivedAt: usableQuote ? timestamp(usableQuote.receivedAt) ?? now : null,
-    historyAsOf, historySource: history.source,
+    historyAsOf, historySource: history.source, historyStale: history.stale ?? false,
     updatedAt: now,
   };
 }
@@ -58,6 +58,6 @@ export function repriceAnalysis(analysis: AssetAnalysis, quote: Quote | undefine
   const asOf = timestamp(quote.asOf);
   if (asOf !== null && analysis.priceAsOf !== null && asOf < analysis.priceAsOf) return analysis;
   if (quote.receivedAt && analysis.quoteReceivedAt && quote.receivedAt < analysis.quoteReceivedAt) return analysis;
-  const next = buildAssetAnalysis(analysis.asset, { candles: analysis.candles, source: analysis.historySource, cached: analysis.dataSource === 'cached' }, quote, now);
+  const next = buildAssetAnalysis(analysis.asset, { candles: analysis.candles, source: analysis.historySource, cached: analysis.dataSource === 'cached', stale: analysis.historyStale }, quote, now);
   return { ...next, historyAsOf: analysis.historyAsOf };
 }

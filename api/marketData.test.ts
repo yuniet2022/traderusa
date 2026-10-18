@@ -60,14 +60,14 @@ describe('server market sources', () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => new Response('', { status: 429 }));
     const service = createMarketService({ fetch: fetcher, now: () => clock });
     await expect(service.history('stock', 'AAPL')).rejects.toThrow('temporarily unavailable');
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     await expect(service.history('stock', 'MSFT')).rejects.toThrow();
     await expect(service.history('stock', 'AAPL')).rejects.toThrow();
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     clock += 61_000;
     fetcher.mockImplementation(async () => new Response(csv));
     expect((await service.history('stock', 'MSFT')).source).toBe('Stooq');
-    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledTimes(4);
   });
 
   it('limits all upstream requests to four at once', async () => {

@@ -149,7 +149,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
       <footer className="border-t border-zinc-800 mt-8">
         <div className="max-w-6xl mx-auto px-4 py-4 text-[11px] text-zinc-600 leading-relaxed">
           TradeRadar es una herramienta educativa de análisis técnico. No es asesoría financiera ni garantiza resultados.
-          Las decisiones de inversión y la ejecución de órdenes son responsabilidad tuya. Fuentes: Kraken, Binance, Yahoo Finance y Stooq.
+          Las decisiones de inversión y la ejecución de órdenes son responsabilidad tuya. Fuentes: Kraken, Coinbase Exchange, Binance, Yahoo Finance y Stooq.
         </div>
       </footer>
 

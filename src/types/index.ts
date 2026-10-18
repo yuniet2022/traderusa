@@ -82,6 +82,7 @@ export interface AssetAnalysis {
   quoteReceivedAt: number | null;
   historyAsOf: number; // timestamp of the latest historical daily bar
   historySource: string;
+  historyStale?: boolean;
   updatedAt: number;
 }
 

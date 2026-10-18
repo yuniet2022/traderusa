@@ -1,16 +1,26 @@
 import type { Asset, Candle, Quote, CandleHistory } from '@/types';
-import { marketJSON } from './marketClient';
+import { MarketRequestError, marketJSON } from './marketClient';
 import { fetchLiveCrypto, fetchLiveStocks } from './live';
 export { WATCHLIST } from '@contracts/watchlist';
 
 const CACHE_TTL = 5 * 60 * 1000;
-function cacheGet<T>(key: string): T | null {
+const MAX_STALE = 24 * 60 * 60 * 1000;
+function cacheGet(key: string, maxAge = CACHE_TTL): CandleHistory | null {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
     const { t, v } = JSON.parse(raw);
-    return Date.now() - t < CACHE_TTL ? v as T : null;
+    const age = Date.now() - Math.min(t, v?.fetchedAt ?? t);
+    if (!Number.isFinite(age) || age < 0 || age >= maxAge || !Array.isArray(v?.candles) || v.candles.length < 60 || typeof v.source !== 'string') return null;
+    if (v.candles.some((c: Candle) => ![c.time, c.open, c.high, c.low, c.close, c.volume].every(Number.isFinite)
+      || c.time <= 0 || Math.min(c.open, c.high, c.low, c.close) <= 0 || c.volume < 0
+      || c.high < Math.max(c.open, c.close, c.low) || c.low > Math.min(c.open, c.close, c.high))) return null;
+    return { ...v, cached: true, ...(v.stale || age >= CACHE_TTL ? { stale: true } : {}) };
   } catch { return null; }
+}
+
+export function loadCachedCandles(asset: Asset): CandleHistory | null {
+  return cacheGet(`history:v3:${asset.assetClass}:${asset.id}`, MAX_STALE);
 }
 function cacheSet(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), v: value })); } catch { /* Storage may be unavailable. */ }
@@ -19,12 +29,19 @@ function cacheSet(key: string, value: unknown) {
 export async function loadCandles(asset: Asset, signal?: AbortSignal): Promise<CandleHistory> {
   signal?.throwIfAborted();
   const key = `history:v3:${asset.assetClass}:${asset.id}`;
-  const cached = cacheGet<CandleHistory>(key);
-  if (cached) return { ...cached, cached: true };
-  const history = await marketJSON<CandleHistory>('history', { assetClass: asset.assetClass, id: asset.id, timeframe: 'scan' }, signal);
-  if (!Array.isArray(history.candles) || history.candles.length < 60) throw new Error(`Datos insuficientes para ${asset.symbol}`);
-  cacheSet(key, history);
-  return history;
+  const cached = cacheGet(key);
+  if (cached && !cached.stale) return { ...cached, cached: true };
+  try {
+    const history = await marketJSON<CandleHistory>('history', { assetClass: asset.assetClass, id: asset.id, timeframe: 'scan' }, signal);
+    if (!Array.isArray(history.candles) || history.candles.length < 60) throw new Error(`Datos insuficientes para ${asset.symbol}`);
+    cacheSet(key, history);
+    return history;
+  } catch (error) {
+    if (signal?.aborted || (error instanceof MarketRequestError && error.status >= 400 && error.status < 500 && error.status !== 429)) throw error;
+    const previous = loadCachedCandles(asset);
+    if (previous) return { ...previous, cached: true, stale: true };
+    throw error;
+  }
 }
 
 export async function fetchCryptoCandles(symbol: string): Promise<Candle[]> {

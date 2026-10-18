@@ -43,4 +43,16 @@ describe('bounded progressive market scan', () => {
     expect(result).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
   });
+  it('loads crypto before all the stock workers become stuck', async () => {
+    const coins: Asset[] = ['BTC', 'ETH'].map(id => ({ id, symbol: id, name: id, assetClass: 'crypto' }));
+    const result = vi.fn();
+    const pending = scanMarket([...assets, ...coins], asset => asset.assetClass === 'stock'
+      ? new Promise(() => {}) : new Promise(resolve => setTimeout(() => resolve(asset.id), 10)), {
+      signal: new AbortController().signal, onResult: result, onProgress: vi.fn(), timeoutMs: 100,
+    });
+    await vi.advanceTimersByTimeAsync(10);
+    expect(result.mock.calls.flat()).toEqual(['BTC', 'ETH']);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await pending).toMatchObject({ succeeded: 2, failed: assets.length, timedOut: true });
+  });
 });
