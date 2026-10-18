@@ -78,9 +78,11 @@ export interface AssetAnalysis {
   regime: 'Tendencia' | 'Rango' | 'Mixto';
   dataSource: 'quote' | 'historical' | 'cached';
   priceSource: string;
+  priceKind?: 'quote' | 'historical';
   priceAsOf: number | null; // provider timestamp, milliseconds; unknown is not receipt time
   quoteReceivedAt: number | null;
   historyAsOf: number; // timestamp of the latest historical daily bar
+  historyFetchedAt?: number | null; // receipt from the history provider, retained through quotes/cache
   historySource: string;
   historyStale?: boolean;
   updatedAt: number;

@@ -77,4 +77,39 @@ describe('quote-driven analysis', () => {
     expect(buildAssetAnalysis(asset, history, { price: 100, change24h: 0, cached: true }).dataSource).toBe('cached');
     expect(buildAssetAnalysis(asset, history, { price: 100, change24h: 0 }).priceAsOf).toBeNull();
   });
+
+  it('keeps the daily-bar start separate from the provider observation and receipt times', () => {
+    const queryTime = quoteTime + 3600000;
+    const analysis = buildAssetAnalysis(asset, { ...history, fetchedAt: queryTime, priceAsOf: quoteTime }, undefined, queryTime + 999);
+    expect(analysis.priceKind).toBe('historical');
+    expect(analysis.historyAsOf).toBe(candles.at(-1)!.time * 1000);
+    expect(analysis.priceAsOf).toBe(quoteTime);
+    expect(analysis.historyFetchedAt).toBe(queryTime);
+    expect(analysis.quoteReceivedAt).toBeNull();
+  });
+
+  it('does not substitute calculation time or candle start for missing provider timestamps', () => {
+    const historical = buildAssetAnalysis(asset, history, undefined, 999999);
+    expect(historical.priceAsOf).toBeNull(); expect(historical.historyFetchedAt).toBeNull();
+    const quote = buildAssetAnalysis(asset, history, { price: 101, change24h: 1 }, 999999);
+    expect(quote.priceKind).toBe('quote');
+    expect(quote.priceAsOf).toBeNull(); expect(quote.quoteReceivedAt).toBeNull();
+  });
+
+  it('preserves original history receipt time through later cached quotes', () => {
+    const historical = buildAssetAnalysis(asset, { ...history, fetchedAt: quoteTime });
+    const quote = { price: 101, change24h: 1, asOf: quoteTime + 60000, receivedAt: quoteTime + 120000, cached: true };
+    const repriced = repriceAnalysis(historical, quote, quoteTime + 999999);
+    expect(repriced.priceKind).toBe('quote');
+    expect(repriced.historyFetchedAt).toBe(quoteTime);
+    expect(repriced.quoteReceivedAt).toBe(quote.receivedAt);
+    expect(repriced.priceAsOf).toBe(quote.asOf);
+    expect(repriceAnalysis(repriced, quote, quoteTime + 1999999).quoteReceivedAt).toBe(quote.receivedAt);
+  });
+
+  it('rejects a quote older than the latest known historical market observation', () => {
+    const historical = buildAssetAnalysis(asset, { ...history, priceAsOf: quoteTime });
+    expect(repriceAnalysis(historical, { price: 90, change24h: -10, asOf: quoteTime - 1 })).toBe(historical);
+    expect(repriceAnalysis(buildAssetAnalysis(asset, history), { price: 90, change24h: -10, asOf: candles.at(-1)!.time * 1000 - 1 }).price).toBe(100);
+  });
 });

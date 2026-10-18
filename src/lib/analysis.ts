@@ -9,9 +9,10 @@ export function buildAssetAnalysis(asset: Asset, history: CandleHistory, quote?:
   const candles = history.candles.map(c => ({ ...c }));
   const previous = candles[candles.length - 1];
   const historyAsOf = previous.time * 1000;
+  const historyPriceAsOf = timestamp(history.priceAsOf);
   const quoteAsOf = timestamp(quote?.asOf);
   const usableQuote = quote && Number.isFinite(quote.price) && quote.price > 0
-    && (quoteAsOf === null || quoteAsOf >= historyAsOf) ? quote : undefined;
+    && (quoteAsOf === null || quoteAsOf >= Math.max(historyAsOf, historyPriceAsOf ?? 0)) ? quote : undefined;
 
   if (usableQuote) {
     // A new UTC day starts a provisional bar containing only observed quote prices.
@@ -46,9 +47,10 @@ export function buildAssetAnalysis(asset: Asset, history: CandleHistory, quote?:
     signal: signalFromScore(composite), levels: computeLevels(indicators, composite),
     dataSource: usableQuote ? (usableQuote.cached ? 'cached' : 'quote') : (history.cached ? 'cached' : 'historical'),
     priceSource: usableQuote?.source ?? history.source,
-    priceAsOf: usableQuote ? quoteAsOf : historyAsOf,
-    quoteReceivedAt: usableQuote ? timestamp(usableQuote.receivedAt) ?? now : null,
-    historyAsOf, historySource: history.source, historyStale: history.stale ?? false,
+    priceKind: usableQuote ? 'quote' : 'historical',
+    priceAsOf: usableQuote ? quoteAsOf : historyPriceAsOf,
+    quoteReceivedAt: usableQuote ? timestamp(usableQuote.receivedAt) : null,
+    historyAsOf, historyFetchedAt: timestamp(history.fetchedAt), historySource: history.source, historyStale: history.stale ?? false,
     updatedAt: now,
   };
 }
@@ -56,8 +58,9 @@ export function buildAssetAnalysis(asset: Asset, history: CandleHistory, quote?:
 export function repriceAnalysis(analysis: AssetAnalysis, quote: Quote | undefined, now = Date.now()): AssetAnalysis {
   if (!quote || !Number.isFinite(quote.price) || quote.price <= 0) return analysis;
   const asOf = timestamp(quote.asOf);
-  if (asOf !== null && analysis.priceAsOf !== null && asOf < analysis.priceAsOf) return analysis;
+  if (asOf !== null && asOf < (analysis.priceAsOf ?? analysis.historyAsOf)) return analysis;
   if (quote.receivedAt && analysis.quoteReceivedAt && quote.receivedAt < analysis.quoteReceivedAt) return analysis;
-  const next = buildAssetAnalysis(analysis.asset, { candles: analysis.candles, source: analysis.historySource, cached: analysis.dataSource === 'cached', stale: analysis.historyStale }, quote, now);
+  const next = buildAssetAnalysis(analysis.asset, { candles: analysis.candles, source: analysis.historySource, cached: analysis.dataSource === 'cached', stale: analysis.historyStale,
+    fetchedAt: analysis.historyFetchedAt ?? undefined }, quote, now);
   return { ...next, historyAsOf: analysis.historyAsOf };
 }
