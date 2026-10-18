@@ -1,14 +1,18 @@
 import { useMemo } from 'react';
 import type { Candle } from '@/types';
 import { sma, bollinger } from '@/lib/indicators';
+import { useChartWidth } from '@/hooks/useChartWidth';
 
 interface Props {
   candles: Candle[];
   height?: number;
+  adaptiveHeight?: boolean;
 }
 
-export function PriceChart({ candles, height = 260 }: Props) {
-  const W = 800, H = height, padL = 8, padR = 56, padT = 10, padB = 22;
+export function PriceChart({ candles, height = 260, adaptiveHeight = false }: Props) {
+  const { containerRef, width } = useChartWidth();
+  const W = width, H = adaptiveHeight ? Math.min(480, Math.max(280, width * 0.5)) : height;
+  const padL = 8, padR = 76, padT = 10, padB = 22;
 
   const { paths, min, max, lastClose, up } = useMemo(() => {
     const data = candles.slice(-260);
@@ -70,14 +74,14 @@ export function PriceChart({ candles, height = 260 }: Props) {
       lastClose: all[all.length - 1],
       up: all[all.length - 1] >= all[0],
     };
-  }, [candles, H]);
+  }, [candles, H, W]);
 
   const color = up ? '#10b981' : '#ef4444';
   const fmt = (v: number) => v >= 1000 ? v.toLocaleString('es', { maximumFractionDigits: 0 })
     : v >= 1 ? v.toFixed(2) : v.toPrecision(3);
 
   return (
-    <div>
+    <div ref={containerRef} className="min-w-0">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 pb-1 text-[11px] text-zinc-400">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 rounded" style={{ background: color }} /> Precio
@@ -95,7 +99,7 @@ export function PriceChart({ candles, height = 260 }: Props) {
           <span className="inline-block h-0.5 w-4 rounded border-t border-dashed" style={{ borderColor: '#6366f1', background: 'rgba(99,102,241,0.15)' }} /> Bandas de Bollinger
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" style={{ height: H }} role="img" aria-label="Precio y medias móviles">
         <defs>
           <linearGradient id="pcg" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.25" />

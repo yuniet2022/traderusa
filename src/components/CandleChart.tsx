@@ -5,12 +5,14 @@ import { TIMEFRAMES, type Timeframe } from '@/lib/data';
 import { useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useCandleHistory } from '@/hooks/useCandleHistory';
+import { useChartWidth } from '@/hooks/useChartWidth';
 import { cn } from '@/lib/utils';
 
 interface Props {
   asset: Asset;
   height?: number;
   initialTimeframe?: Timeframe;
+  adaptiveHeight?: boolean;
 }
 
 const fmt = (v: number) => v >= 1000 ? v.toLocaleString('es', { maximumFractionDigits: 0 })
@@ -24,12 +26,14 @@ function fmtTime(t: number, tf: Timeframe): string {
   return d.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function CandleChart({ asset, height = 300, initialTimeframe = '1d' }: Props) {
+export function CandleChart({ asset, height = 300, initialTimeframe = '1d', adaptiveHeight = false }: Props) {
   const [tf, setTf] = useState<Timeframe>(initialTimeframe);
   const { history, loading, error, refresh } = useCandleHistory(asset, tf);
   const candles = history?.candles ?? null;
+  const { containerRef, width } = useChartWidth();
 
-  const W = 800, H = height, padL = 4, padR = 56, padT = 8;
+  const W = width, H = adaptiveHeight ? Math.min(480, Math.max(280, width * 0.5)) : height;
+  const padL = 4, padR = 76, padT = 8;
   const volH = 34, padB = 18;
   const priceH = H - padT - padB - volH - 6;
 
@@ -81,10 +85,10 @@ export function CandleChart({ asset, height = 300, initialTimeframe = '1d' }: Pr
 
     const last = data[n - 1];
     return { data, x, y, lo, hi, step, bodyW, maxVol, s20: line(s20), s50: line(s50), bandFill, bbU: line(bbU), bbL: line(bbL), last };
-  }, [candles, priceH]);
+  }, [candles, priceH, W]);
 
   return (
-    <div>
+    <div ref={containerRef} className="min-w-0">
       {/* Selector de temporalidad */}
       <div className="flex items-center gap-1 px-1 pb-2 flex-wrap">
         {TIMEFRAMES.map(t => (
@@ -124,11 +128,11 @@ export function CandleChart({ asset, height = 300, initialTimeframe = '1d' }: Pr
       )}
 
       {!view && loading && (
-        <div className="flex items-center justify-center text-zinc-600 text-xs" style={{ height }}>Cargando velas reales…</div>
+        <div className="flex items-center justify-center text-zinc-600 text-xs" style={{ height: H }}>Cargando velas reales…</div>
       )}
 
       {view && (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }} role="img" aria-label={`Velas de ${asset.symbol}, ${TIMEFRAMES.find(t => t.id === tf)?.label}`}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" style={{ height: H }} role="img" aria-label={`Velas de ${asset.symbol}, ${TIMEFRAMES.find(t => t.id === tf)?.label}`}>
           {/* rejilla horizontal */}
           {[0.25, 0.5, 0.75].map(f => {
             const yv = padT + f * priceH;

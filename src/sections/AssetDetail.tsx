@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AssetAnalysis } from '@/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SignalBadge, ScoreBar } from '@/components/SignalBadge';
 import { PriceChart } from '@/components/PriceChart';
 import { CandleChart } from '@/components/CandleChart';
@@ -40,10 +40,11 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
   const [learnMode, setLearnMode] = useState(false);
   return (
     <Dialog open={!!a} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-zinc-950 border-zinc-800">
+      <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1440px] flex-col gap-0 overflow-hidden border-zinc-800 bg-zinc-950 p-0 sm:h-[94dvh] sm:w-[calc(100%-3rem)] sm:max-w-[1440px]">
         {a && (
           <>
-            <DialogHeader>
+            <div className="shrink-0 border-b border-zinc-800 px-4 pb-4 pt-5 sm:px-6">
+            <DialogHeader className="pr-8 text-left">
               <DialogTitle className="flex items-center gap-3 flex-wrap">
                 <span className="text-xl">{a.asset.symbol}</span>
                 <span className="text-sm text-zinc-400 font-normal">{a.asset.name}</span>
@@ -52,18 +53,20 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                   Régimen: {a.regime}
                 </span>
               </DialogTitle>
+              <DialogDescription className="sr-only">Gráfico, lectura del mercado, plan e indicadores de {a.asset.name}.</DialogDescription>
             </DialogHeader>
 
-            <div className="flex items-baseline gap-3">
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
               <span className="text-3xl font-bold font-mono">${fmt(a.price)}</span>
               {a.change24h !== null && (
                 <span className={cn('font-mono', a.change24h >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                   {a.change24h >= 0 ? '+' : ''}{a.change24h.toFixed(2)}% (24h)
                 </span>
               )}
-              <span className="ml-auto"><ScoreBar score={a.composite} /></span>
+              <span className="sm:ml-auto"><ScoreBar score={a.composite} /></span>
             </div>
 
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <PriceDataStatus analysis={a} />
 
             <Button
@@ -71,7 +74,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               size="sm"
               onClick={() => onTogglePortfolio(a)}
               className={cn(
-                'gap-1.5 w-fit',
+                'gap-1.5 h-auto max-w-full w-fit whitespace-normal text-left',
                 inPortfolio
                   ? 'border-emerald-700 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-950/60'
                   : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800',
@@ -79,8 +82,12 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               <Briefcase size={14} />
               {inPortfolio ? 'En mi portafolio ✓ (clic para quitar)' : 'Tengo esto en Robinhood'}
             </Button>
+            </div>
+            </div>
 
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-2">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6 [scrollbar-gutter:stable]" data-testid="asset-detail-scroll">
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+            <div className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
               <div className="flex items-center gap-1 px-1 pb-2">
                 <button onClick={() => setChartMode('candles')}
                   className={cn('px-2.5 py-0.5 rounded text-[11px] font-medium border transition-colors',
@@ -98,19 +105,22 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                 </button>
               </div>
               {chartMode === 'candles'
-                ? <CandleChart asset={a.asset} />
-                : <PriceChart candles={a.candles} />}
+                ? <CandleChart asset={a.asset} adaptiveHeight />
+                : <PriceChart candles={a.candles} adaptiveHeight />}
             </div>
 
+            <div className="min-w-0 space-y-4">
             <DayTypePanel asset={a.asset} />
             <SetupPanel asset={a.asset} />
+            </div>
+            </div>
 
             <Button
               variant="outline"
               size="sm"
               onClick={() => setLearnMode(!learnMode)}
               className={cn(
-                'gap-1.5 w-fit',
+                'gap-1.5 h-auto max-w-full w-fit whitespace-normal text-left',
                 learnMode
                   ? 'border-indigo-600 bg-indigo-950/50 text-indigo-300 hover:bg-indigo-950/70'
                   : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800',
@@ -162,6 +172,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             )}
 
             {/* Plan de trading: entrada / salida */}
+            <div className="grid items-start gap-4 lg:grid-cols-2">
             <div className={cn(
               'rounded-lg border p-3',
               a.levels.bias === 'LARGO' ? 'border-emerald-900/60 bg-emerald-950/20'
@@ -188,6 +199,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             </div>
 
             <RiskCalculator key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} />
+            </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
@@ -229,6 +241,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                   en la señal final. Esto no es asesoría financiera.
                 </div>
               </div>
+            </div>
             </div>
           </>
         )}
