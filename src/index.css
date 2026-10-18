@@ -72,4 +72,26 @@
   body {
     @apply bg-background text-foreground;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  #root {
+    width: 100%;
+    min-width: 0;
+  }
+  input,
+  select,
+  textarea {
+    min-width: 0;
+  }
+}
+
+/* Safari zooms focused fields below 16px. Keep pinch zoom available. */
+@media (max-width: 767px), (hover: none) and (pointer: coarse) {
+  :root input,
+  :root select,
+  :root textarea {
+    font-size: 16px;
+  }
 }

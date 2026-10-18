@@ -3,7 +3,7 @@ import type { AssetAnalysis, Asset } from '@/types';
 import type { Position, BuyLot } from '@/lib/portfolio';
 import { avgBuyPrice, totalQuantity } from '@/lib/portfolio';
 import { searchAssets } from '@/lib/search';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SignalBadge } from '@/components/SignalBadge';
@@ -122,7 +122,7 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 relative">
+        <Button aria-label="Mi portafolio" variant="outline" size="sm" className="h-10 sm:h-8 gap-1.5 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 relative">
           <Briefcase size={14} />
           <span className="hidden sm:inline">Mi portafolio</span>
           {positions.length > 0 && (
@@ -135,14 +135,13 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent className="bg-zinc-950 border-zinc-800 text-zinc-100 w-full sm:max-w-md overflow-y-auto">
+      <SheetContent className="bg-zinc-950 border-zinc-800 text-zinc-100 w-full sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="text-zinc-100">Mi portafolio de Robinhood</SheetTitle>
+          <SheetDescription className="text-sm leading-relaxed text-zinc-400 mt-1">
+            Busca un activo y registra tus compras para ver el precio promedio y sus señales.
+          </SheetDescription>
         </SheetHeader>
-        <p className="text-xs text-zinc-500 mt-1">
-          Busca cualquier activo (aunque no esté en la lista), añade tus compras con cantidad y precio,
-          y la app calcula tu precio promedio y te avisa si alguna da señal de venta.
-        </p>
 
         {/* Buscador + compras */}
         <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2.5">
@@ -157,14 +156,15 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
             </div>
           ) : (
             <div ref={searchRef} className="relative">
-              <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 h-9">
+              <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 h-11">
                 {searching ? <Loader2 size={13} className="text-zinc-500 animate-spin" /> : <Search size={13} className="text-zinc-500" />}
                 <input value={query} onChange={e => setQuery(e.target.value)}
+                  aria-label="Buscar activo para mi portafolio"
                   placeholder="Buscar (ej. HOOD, SHIB, MSTR…)"
-                  className="bg-transparent outline-none text-sm w-full placeholder:text-zinc-600" />
+                  className="min-w-0 bg-transparent outline-none text-sm w-full placeholder:text-zinc-500" />
               </div>
               {results.length > 0 && (
-                <div className="absolute top-10 left-0 right-0 z-50 rounded-md border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
+                <div className="absolute top-full mt-1 left-0 right-0 z-50 rounded-md border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
                   {results.map(a => (
                     <button key={`${a.assetClass}:${a.id}`}
                       onClick={() => { setPicked(a); setResults([]); setQuery(''); }}
@@ -185,11 +185,13 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
             {lots.map((lot, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Input type="number" min="0" step="any" value={lot.quantity || ''}
+                  inputMode="decimal" aria-label={`Cantidad de compra ${i + 1}`}
                   onChange={e => setLots(lots.map((l, j) => j === i ? { ...l, quantity: parseFloat(e.target.value) || 0 } : l))}
-                  placeholder="Cantidad" className="bg-zinc-900 border-zinc-700 h-8 text-xs" />
+                  placeholder="Cantidad" className="min-w-0 bg-zinc-900 border-zinc-700 h-10 text-sm" />
                 <Input type="number" min="0" step="any" value={lot.price || ''}
+                  inputMode="decimal" aria-label={`Precio de compra ${i + 1} (USD)`}
                   onChange={e => setLots(lots.map((l, j) => j === i ? { ...l, price: parseFloat(e.target.value) || 0 } : l))}
-                  placeholder="Precio $" className="bg-zinc-900 border-zinc-700 h-8 text-xs" />
+                  placeholder="Precio $" className="min-w-0 bg-zinc-900 border-zinc-700 h-10 text-sm" />
                 {lots.length > 1 && (
                   <button onClick={() => setLots(lots.filter((_, j) => j !== i))} className="text-zinc-500 hover:text-red-400 shrink-0">
                     <X size={13} />
@@ -198,7 +200,7 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
               </div>
             ))}
             <button onClick={() => setLots([...lots, { quantity: 0, price: 0 }])}
-              className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+              className="min-h-10 text-xs text-indigo-300 hover:text-indigo-200 flex items-center gap-1">
               <Plus size={11} /> Añadir otra compra
             </button>
           </div>
@@ -218,7 +220,7 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
         {/* Lista de posiciones */}
         <div className="mt-4 space-y-2">
           {enriched.length === 0 && (
-            <p className="text-xs text-zinc-500 text-center py-6">
+            <p className="text-sm text-zinc-400 text-center py-4">
               Sin posiciones. Busca arriba lo que tengas en Robinhood.
             </p>
           )}
@@ -229,7 +231,7 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
               <div key={p.assetId}
                 className={cn('rounded-lg border px-3 py-2.5',
                   isSell ? 'border-red-900/60 bg-red-950/20' : 'border-zinc-800 bg-zinc-900/60')}>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => a && onSelect(a)} className="font-semibold text-sm hover:underline">
                     {p.symbol}
                   </button>
@@ -270,13 +272,13 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
             Tus posiciones se guardan en tu cuenta: inicia sesión desde cualquier dispositivo y ahí estarán.
             Además puedes exportar un respaldo en JSON por si acaso.
           </p>
-          <div className="flex gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <Button onClick={exportBackup} disabled={positions.length === 0} variant="outline" size="sm"
-              className="gap-1.5 flex-1 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs">
+              className="h-10 min-w-0 gap-1.5 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs">
               <Download size={13} /> Exportar respaldo
             </Button>
             <Button onClick={() => fileRef.current?.click()} variant="outline" size="sm"
-              className="gap-1.5 flex-1 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs">
+              className="h-10 min-w-0 gap-1.5 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs">
               <Upload size={13} /> Importar respaldo
             </Button>
             <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={importBackup} />

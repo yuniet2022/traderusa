@@ -62,17 +62,17 @@ export default function Terminal({ user }: { user: SessionUser }) {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap sm:flex-nowrap items-center gap-3">
+    <div className="min-h-screen min-w-0 bg-zinc-950 text-zinc-100">
+      <header className="border-b border-zinc-800 bg-zinc-950/95 backdrop-blur sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:flex sm:flex-wrap lg:flex-nowrap">
           <div className="flex items-center gap-2 shrink-0">
             <div className="rounded-lg bg-emerald-500/15 p-1.5">
               <Radar size={20} className="text-emerald-400" />
             </div>
-            <h1 className="font-bold leading-tight hidden sm:block">TradeRadar</h1>
+            <h1 className="font-bold leading-tight hidden min-[400px]:block">TradeRadar</h1>
           </div>
-          <SearchBox onPick={handlePick} />
-          <div className="ml-auto flex items-center gap-2 shrink-0">
+          <SearchBox onPick={handlePick} className="col-span-2 row-start-2 max-w-none sm:max-w-sm" />
+          <div className="col-start-2 row-start-1 ml-auto flex min-w-0 items-center gap-2 shrink-0">
             <PortfolioPanel
               positions={portfolio}
               analyses={analyses}
@@ -96,7 +96,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
               {user.isAdmin && <AdminPanel />}
               <span className="text-xs text-zinc-400 hidden sm:inline max-w-24 truncate">{user.displayName ?? user.username}</span>
               <button onClick={() => logout.mutate()} title="Cerrar sesión" aria-label="Cerrar sesión"
-                className="text-zinc-500 hover:text-red-400 transition-colors p-1">
+                className="flex h-10 w-10 items-center justify-center rounded-md text-zinc-400 hover:text-red-400 transition-colors sm:h-8 sm:w-8">
                 <LogOut size={15} />
               </button>
             </div>
@@ -104,7 +104,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-5">
+      <main className="w-full min-w-0 max-w-6xl mx-auto px-3 py-4 sm:px-4 sm:py-5">
         {user.daysLeft !== null && user.daysLeft <= 7 && (
           <div className="mb-4 rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-xs text-amber-200/90">
             Tu suscripción {user.daysLeft <= 0 ? 'está por vencer hoy' : `vence en ${user.daysLeft} día${user.daysLeft === 1 ? '' : 's'}`}.
@@ -112,14 +112,14 @@ export default function Terminal({ user }: { user: SessionUser }) {
           </div>
         )}
         <Tabs defaultValue="dashboard">
-          <TabsList className="mb-5 h-auto max-w-full flex-wrap justify-start">
-            <TabsTrigger value="dashboard" className="gap-1.5">
-              <LayoutDashboard size={14} /> Señales
+          <TabsList className="mb-4 grid h-auto w-full grid-cols-3 sm:mb-5 sm:inline-flex sm:w-fit sm:flex-wrap">
+            <TabsTrigger value="dashboard" className="h-auto min-h-11 gap-1 px-2 text-xs whitespace-normal sm:min-h-8 sm:text-sm">
+              <LayoutDashboard size={14} className="hidden sm:block" /> Señales
             </TabsTrigger>
-            <TabsTrigger value="research" className="gap-1.5">
-              <BookOpen size={14} /> Investigación
+            <TabsTrigger value="research" className="h-auto min-h-11 gap-1 px-2 text-xs whitespace-normal sm:min-h-8 sm:text-sm">
+              <BookOpen size={14} className="hidden sm:block" /> Investigación
             </TabsTrigger>
-            <TabsTrigger value="laboratory">Planes y simulación</TabsTrigger>
+            <TabsTrigger value="laboratory" className="h-auto min-h-11 px-2 text-xs whitespace-normal sm:min-h-8 sm:text-sm">Planes y simulación</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard">
             <Dashboard

@@ -40,7 +40,7 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
   const sellsFromPortfolio = myPositions.filter(a => a.composite <= -20);
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: 'Activos analizados', value: analyses.length, detail: `${quoteCount} con cotización consultada`, color: 'text-zinc-100' },
@@ -48,10 +48,10 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
           { label: 'Posiciones en venta', value: sellsFromPortfolio.length, detail: 'Solo de tu portafolio', color: 'text-red-400' },
           { label: 'Mi portafolio', value: positions.length, detail: 'Posiciones registradas', color: 'text-indigo-300' },
         ].map(item => (
-          <div key={item.label} className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+          <div key={item.label} className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
             <p className="text-xs text-zinc-400">{item.label}</p>
             <p className={cn('mt-1 text-2xl font-semibold tabular-nums', item.color)}>{item.value}</p>
-            <p className="mt-1 text-[11px] text-zinc-500">{item.detail}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-400">{item.detail}</p>
           </div>
         ))}
       </div>
@@ -65,7 +65,7 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
       {!loading || analyses.length > 0 ? <Top10 analyses={analyses} positions={positions} onSelect={onSelect} /> : null}
 
       {/* Tabla principal (estilo Yahoo most-active) */}
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+      <div className="min-w-0 rounded-lg border border-zinc-800 bg-zinc-900/50 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-zinc-800">
           <h2 className="text-sm font-semibold">Escáner del mercado</h2>
           <div className="flex items-center gap-2">
@@ -81,8 +81,8 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
             </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-end gap-3 px-4 py-3 border-b border-zinc-800 bg-zinc-950/30">
-          <label className="min-w-[180px] flex-1 space-y-1 text-xs text-zinc-400">
+        <div className="grid grid-cols-2 items-end gap-3 px-3 py-3 sm:px-4 sm:flex sm:flex-wrap border-b border-zinc-800 bg-zinc-950/30">
+          <label className="col-span-2 min-w-0 sm:min-w-[180px] sm:flex-1 space-y-1 text-xs text-zinc-400">
             <span>Filtrar activos</span>
             <span className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-950 px-3">
               <Search size={14} aria-hidden="true" />
@@ -90,19 +90,19 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
                 className="h-9 min-w-0 w-full bg-transparent text-zinc-100 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" />
             </span>
           </label>
-          <label className="space-y-1 text-xs text-zinc-400">
+          <label className="min-w-0 space-y-1 text-xs text-zinc-400">
             <span className="block">Señal</span>
-            <select aria-label="Señal" value={signal} onChange={e => setSignal(e.target.value as ScannerSignal)} className="h-9 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-zinc-100">
-              <option value="all">Todas las señales</option><option value="buy">Compra</option><option value="sell">Venta</option><option value="neutral">Neutral</option>
+            <select aria-label="Señal" value={signal} onChange={e => setSignal(e.target.value as ScannerSignal)} className="h-11 w-full sm:h-9 sm:w-auto rounded-md border border-zinc-700 bg-zinc-950 px-2 text-zinc-100">
+              <option value="all">Todas</option><option value="buy">Compra</option><option value="sell">Venta</option><option value="neutral">Neutral</option>
             </select>
           </label>
-          <label className="space-y-1 text-xs text-zinc-400">
+          <label className="min-w-0 space-y-1 text-xs text-zinc-400">
             <span className="block">Ordenar por</span>
-            <select aria-label="Ordenar por" value={sort} onChange={e => setSort(e.target.value as ScannerSort)} className="h-9 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-zinc-100">
-              <option value="score">Mayor puntuación</option><option value="change">Mayor cambio diario</option><option value="symbol">Símbolo A–Z</option>
+            <select aria-label="Ordenar por" value={sort} onChange={e => setSort(e.target.value as ScannerSort)} className="h-11 w-full sm:h-9 sm:w-auto rounded-md border border-zinc-700 bg-zinc-950 px-2 text-zinc-100">
+              <option value="score">Puntuación</option><option value="change">Cambio diario</option><option value="symbol">Símbolo</option>
             </select>
           </label>
-          <span className="pb-2 text-xs text-zinc-500" role="status">{filtered.length} de {analyses.length} activos</span>
+          <span className="col-span-2 sm:pb-2 text-xs text-zinc-400" role="status">{filtered.length} de {analyses.length} activos</span>
         </div>
 
         {loading && analyses.length === 0 ? (
@@ -118,7 +118,11 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
             }}>{analyses.length === 0 ? 'Reintentar carga' : 'Restablecer filtros'}</Button>
           </div>
         ) : (
-          <div className="relative overflow-x-auto">
+          <>
+          <div className="divide-y divide-zinc-800 md:hidden" aria-label="Activos del mercado">
+            {filtered.map(a => <MobileAssetRow key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} onSelect={onSelect} onQuickAlert={onQuickAlert} />)}
+          </div>
+          <div className="relative hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] text-zinc-500 border-b border-zinc-800">
@@ -150,7 +154,7 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
                         <span className="text-[11px] text-zinc-500 hidden sm:inline max-w-[140px] truncate">{a.asset.name}</span>
                       </div>
                     </td>
-                    <td className="py-2 pr-2 text-right font-mono">{fmtPrice(a.price)}<PriceDataStatus analysis={a} /></td>
+                    <td className="py-2 pr-2 text-right font-mono whitespace-nowrap">{fmtPrice(a.price)}<PriceDataStatus analysis={a} /></td>
                     <td className={cn('py-2 pr-2 text-right font-mono text-xs',
                       (a.change24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                       {a.change24h === null ? '—' : `${a.change24h >= 0 ? '+' : ''}${a.change24h.toFixed(2)}%`}
@@ -174,12 +178,49 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
               </tbody>
             </table>
           </div>
+          </>
         )}
-        <p className="text-[10px] text-zinc-600 px-4 py-2 border-t border-zinc-800">
+        <p className="text-[11px] leading-relaxed text-zinc-400 px-3 sm:px-4 py-3 border-t border-zinc-800">
           Fuentes gratuitas con posible retraso; cada precio indica origen y hora ·
           Entrada/Objetivo/Stop calculados con volatilidad (ATR) · Las alertas automáticas avisan cuando cambia una señal · No es asesoría financiera.
         </p>
       </div>
     </div>
   );
+}
+
+function MobileAssetRow({ analysis: a, onSelect, onQuickAlert }: {
+  analysis: AssetAnalysis;
+  onSelect: Props['onSelect'];
+  onQuickAlert: Props['onQuickAlert'];
+}) {
+  return <article className="min-w-0 px-3 py-3" data-slot="mobile-asset">
+    <div className="flex items-start gap-2">
+      <button onClick={() => onSelect(a)} aria-label={`Ver análisis de ${a.asset.symbol}`}
+        className="flex min-h-11 min-w-0 flex-1 items-start justify-between gap-3 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5 font-semibold text-sm">
+            <span className="truncate">{a.asset.symbol}</span>
+            {a.extension === 2 && <AlertTriangle size={13} className="shrink-0 text-amber-400" aria-label="Precio extendido" />}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-zinc-400">{a.asset.name}</span>
+        </span>
+        <span className="shrink-0 text-right">
+          <span className="block font-mono text-sm font-medium tabular-nums">{fmtPrice(a.price)}</span>
+          <span className={cn('mt-0.5 block font-mono text-xs', (a.change24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+            {a.change24h === null ? '—' : `${a.change24h >= 0 ? '+' : ''}${a.change24h.toFixed(2)}%`}
+          </span>
+        </span>
+      </button>
+      <button onClick={() => onQuickAlert(a)} aria-label={`Crear alerta para ${a.asset.symbol}`}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 text-zinc-400 hover:text-amber-400">
+        <BellPlus size={16} />
+      </button>
+    </div>
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <SignalBadge signal={a.signal} />
+      <span className="text-xs text-zinc-400">Puntuación <span className={cn('font-mono font-medium', a.composite >= 0 ? 'text-emerald-400' : 'text-red-400')}>{a.composite > 0 ? '+' : ''}{a.composite.toFixed(0)}</span></span>
+    </div>
+    <div className="mt-1.5"><PriceDataStatus analysis={a} /></div>
+  </article>;
 }

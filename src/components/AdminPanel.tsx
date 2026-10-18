@@ -46,12 +46,12 @@ export function AdminPanel() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 border-amber-700/60 bg-amber-950/30 text-amber-300 hover:bg-amber-950/50">
+        <Button aria-label="Administración" variant="outline" size="sm" className="h-10 sm:h-8 gap-1.5 border-amber-700/60 bg-amber-950/30 text-amber-300 hover:bg-amber-950/50">
           <ShieldCheck size={14} />
           <span className="hidden sm:inline">Admin</span>
         </Button>
       </SheetTrigger>
-      <SheetContent className="bg-zinc-950 border-zinc-800 text-zinc-100 w-full sm:max-w-md overflow-y-auto">
+      <SheetContent className="bg-zinc-950 border-zinc-800 text-zinc-100 w-full sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="text-zinc-100">Panel de administración</SheetTitle>
         </SheetHeader>
@@ -65,19 +65,19 @@ export function AdminPanel() {
             Cuando alguien te pague la suscripción, genera un código y envíaselo. Cada código
             sirve para crear UNA cuenta. Si no lo usa, puedes revocarlo.
           </p>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <select value={days} onChange={e => setDays(Number(e.target.value))}
-              className="bg-zinc-900 border border-zinc-700 rounded-md text-xs px-2 h-9 text-zinc-200">
+              aria-label="Duración del código" className="min-w-0 bg-zinc-900 border border-zinc-700 rounded-md text-xs px-2 h-10 sm:h-9 text-zinc-200">
               <option value={7}>7 días</option>
               <option value={30}>30 días</option>
               <option value={90}>90 días</option>
               <option value={365}>1 año</option>
             </select>
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="Nota (ej. nombre del cliente)"
-              className="flex-1 bg-zinc-900 border border-zinc-700 rounded-md text-xs px-2.5 h-9 outline-none placeholder:text-zinc-600" />
+              aria-label="Nota del código" className="col-span-2 row-start-2 min-w-0 sm:flex-1 bg-zinc-900 border border-zinc-700 rounded-md text-xs px-2.5 h-10 sm:h-9 outline-none placeholder:text-zinc-500" />
             <Button size="sm" onClick={() => createCode.mutate({ days, note: note || undefined })}
               disabled={createCode.isPending}
-              className="gap-1 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold h-9">
+              className="col-start-2 row-start-1 min-w-0 gap-1 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold h-10 sm:h-9">
               {createCode.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
               Generar
             </Button>
@@ -92,11 +92,11 @@ export function AdminPanel() {
           )}
           {(codes.data ?? []).map(c => (
             <div key={c.id} className={cn(
-              'rounded-lg border px-3 py-2 flex items-center gap-2',
+              'rounded-lg border px-3 py-2 flex flex-wrap items-center gap-2',
               c.usedBy ? 'border-zinc-800 bg-zinc-900/40 opacity-60'
               : c.revoked ? 'border-red-900/50 bg-red-950/10 opacity-60'
               : 'border-emerald-800/50 bg-emerald-950/20')}>
-              <span className="font-mono text-sm font-bold tracking-wider">{c.code}</span>
+              <span className="min-w-0 break-all font-mono text-sm font-bold tracking-wider">{c.code}</span>
               <span className="text-[10px] text-zinc-500">{c.days}d</span>
               {c.note && <span className="text-[10px] text-zinc-500 truncate max-w-20">{c.note}</span>}
               <span className={cn('ml-auto text-[10px] font-semibold',

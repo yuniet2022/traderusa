@@ -16,21 +16,21 @@ function Row({ a, rank, onSelect }: { a: AssetAnalysis; rank: number; onSelect: 
   return (
     <button onClick={() => onSelect(a)}
       className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800/50 transition-colors text-left border-b border-zinc-800/40 last:border-0">
-      <span className="text-[11px] text-zinc-600 w-4 font-mono">{rank}</span>
+      <span className="shrink-0 text-[11px] text-zinc-400 w-4 font-mono">{rank}</span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="font-semibold text-sm">{a.asset.symbol}</span>
           <span className="text-[10px] text-zinc-600 uppercase">{a.asset.assetClass === 'crypto' ? 'cripto' : 'acción'}</span>
         </div>
-        <span className="text-[11px] text-zinc-500 truncate block">{a.asset.name}</span>
+        <span className="text-xs text-zinc-400 truncate block">{a.asset.name}</span>
       </div>
-      <div className="text-right">
+      <div className="shrink-0 text-right">
         <div className="font-mono text-sm">{fmtPrice(a.price)}</div>
         <div className={cn('font-mono text-[11px]', (a.change24h ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
           {a.change24h === null ? '—' : `${a.change24h >= 0 ? '+' : ''}${a.change24h.toFixed(2)}%`}
         </div>
       </div>
-      <div className="w-16 text-right">
+      <div className="w-10 shrink-0 text-right sm:w-16">
         <span className={cn('font-mono text-sm font-bold', a.composite >= 0 ? 'text-emerald-400' : 'text-red-400')}>
           {a.composite > 0 ? '+' : ''}{a.composite.toFixed(0)}
         </span>

@@ -38,7 +38,7 @@ export function AlertsPanel({ alerts, analyses, onAdd, onRemove }: Props) {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 relative">
+        <Button aria-label="Alertas" variant="outline" size="sm" className="h-10 sm:h-8 gap-1.5 border-zinc-700 bg-zinc-900 hover:bg-zinc-800 relative">
           {active.length > 0 ? <BellRing size={14} className="text-amber-400" /> : <Bell size={14} />}
           <span className="hidden sm:inline">Alertas</span>
           {active.length > 0 && (
@@ -48,7 +48,7 @@ export function AlertsPanel({ alerts, analyses, onAdd, onRemove }: Props) {
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent className="bg-zinc-950 border-zinc-800 text-zinc-100 w-full sm:max-w-md overflow-y-auto">
+      <SheetContent className="bg-zinc-950 border-zinc-800 text-zinc-100 w-full sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="text-zinc-100">Alertas de compra / venta</SheetTitle>
         </SheetHeader>
