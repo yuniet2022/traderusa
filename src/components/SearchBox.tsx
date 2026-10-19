@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { searchAssets } from '@/lib/search';
+import { searchAssets, stockSymbolCandidate } from '@/lib/search';
 import type { Asset } from '@/types';
 import { Search, Loader2, Bitcoin, LineChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,11 +11,13 @@ interface Props {
 
 export function SearchBox({ onPick, className }: Props) {
   const [query, setQuery] = useState('');
-  const [search, setSearch] = useState<{ query: string; results: Asset[] }>({ query: '', results: [] });
+  const [search, setSearch] = useState<{ query: string; results: Asset[]; unavailable?: boolean }>({ query: '', results: [] });
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const searching = query.trim().length > 0 && search.query !== query;
   const results = search.query === query ? search.results : [];
+  const candidate = stockSymbolCandidate(query);
+  const manual = candidate && !results.some(a => a.assetClass === 'stock' && a.id === candidate.id) ? candidate : null;
 
   useEffect(() => {
     if (query.trim().length === 0) return;
@@ -25,7 +27,7 @@ export function SearchBox({ onPick, className }: Props) {
         const results = await searchAssets(query, controller.signal);
         if (!controller.signal.aborted) setSearch({ query, results });
       } catch {
-        if (!controller.signal.aborted) setSearch({ query, results: [] });
+        if (!controller.signal.aborted) setSearch({ query, results: [], unavailable: true });
       }
     }, 400);
     return () => {
@@ -61,7 +63,7 @@ export function SearchBox({ onPick, className }: Props) {
       {open && query.trim().length > 0 && !searching && (
         <div className="absolute top-full mt-1 left-0 right-0 z-50 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
           {results.length === 0 ? (
-            <p className="px-3 py-2.5 text-xs text-zinc-500">Sin resultados para «{query}»</p>
+            <p role="status" className="px-3 py-2.5 text-xs text-zinc-400">{search.unavailable ? 'El buscador no está disponible. Puedes reintentar o consultar una acción por su símbolo.' : `Sin resultados para «${query}»`}</p>
           ) : results.map(a => (
             <button
               key={`${a.assetClass}:${a.id}`}
@@ -76,6 +78,13 @@ export function SearchBox({ onPick, className }: Props) {
               <span className="ml-auto text-[10px] text-zinc-600 uppercase">{a.assetClass === 'crypto' ? 'cripto' : 'acción'}</span>
             </button>
           ))}
+          {manual && <button
+            onClick={() => { onPick(manual); setQuery(''); setOpen(false); }}
+            className="w-full border-t border-zinc-700 px-3 py-2.5 text-left hover:bg-zinc-800"
+          >
+            <span className="block text-sm text-emerald-400">Consultar acción {manual.symbol}</span>
+            <span className="block text-xs text-zinc-400">Símbolo manual; datos por verificar con el proveedor.</span>
+          </button>}
         </div>
       )}
     </div>

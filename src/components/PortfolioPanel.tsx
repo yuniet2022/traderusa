@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AssetAnalysis, Asset } from '@/types';
 import type { Position, BuyLot } from '@/lib/portfolio';
 import { avgBuyPrice, totalQuantity } from '@/lib/portfolio';
-import { searchAssets } from '@/lib/search';
+import { searchAssets, stockSymbolCandidate } from '@/lib/search';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,8 +23,12 @@ interface Props {
 export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, onSelect }: Props) {
   // buscador
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Asset[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [search, setSearch] = useState<{ query: string; results: Asset[]; unavailable?: boolean }>({ query: '', results: [] });
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searching = query.trim().length > 0 && search.query !== query;
+  const results = search.query === query ? search.results : [];
+  const candidate = stockSymbolCandidate(query);
+  const manual = candidate && !results.some(a => a.assetClass === 'stock' && a.id === candidate.id) ? candidate : null;
   const [picked, setPicked] = useState<Asset | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -68,25 +72,27 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
   };
 
   useEffect(() => {
-    if (query.trim().length === 0) { setResults([]); return; }
-    setSearching(true);
+    if (query.trim().length === 0) return;
+    const controller = new AbortController();
     const t = setTimeout(async () => {
       // primero sugerir de los ya cargados
       const local = analyses
         .filter(a => a.asset.symbol.toLowerCase().includes(query.toLowerCase()) || a.asset.name.toLowerCase().includes(query.toLowerCase()))
         .map(a => a.asset);
-      const remote = await searchAssets(query);
-      const merged = [...local];
-      for (const r of remote) if (!merged.some(m => m.id === r.id)) merged.push(r);
-      setResults(merged.slice(0, 8));
-      setSearching(false);
+      try {
+        const remote = await searchAssets(query, controller.signal);
+        const merged = [...new Map([...local, ...remote].map(a => [`${a.assetClass}:${a.id}`, a])).values()];
+        if (!controller.signal.aborted) setSearch({ query, results: merged.slice(0, 8) });
+      } catch {
+        if (!controller.signal.aborted) setSearch({ query, results: local.slice(0, 8), unavailable: true });
+      }
     }, 400);
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); controller.abort(); };
   }, [query, analyses]);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setResults([]);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false);
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
@@ -158,22 +164,32 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
             <div ref={searchRef} className="relative">
               <div className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 h-11">
                 {searching ? <Loader2 size={13} className="text-zinc-500 animate-spin" /> : <Search size={13} className="text-zinc-500" />}
-                <input value={query} onChange={e => setQuery(e.target.value)}
+                <input value={query} onChange={e => { setQuery(e.target.value); setSearchOpen(true); }}
+                  onFocus={() => setSearchOpen(true)}
+                  onKeyDown={e => { if (e.key === 'Escape') setSearchOpen(false); }}
                   aria-label="Buscar activo para mi portafolio"
                   placeholder="Buscar (ej. HOOD, SHIB, MSTR…)"
                   className="min-w-0 bg-transparent outline-none text-sm w-full placeholder:text-zinc-500" />
               </div>
-              {results.length > 0 && (
+              {searchOpen && query.trim().length > 0 && !searching && (
                 <div className="absolute top-full mt-1 left-0 right-0 z-50 rounded-md border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
+                  {!results.length && <p role="status" className="px-2.5 py-2 text-xs text-zinc-400">{search.unavailable ? 'El buscador no está disponible. Puedes registrar una acción por su símbolo.' : `Sin resultados para «${query}»`}</p>}
                   {results.map(a => (
                     <button key={`${a.assetClass}:${a.id}`}
-                      onClick={() => { setPicked(a); setResults([]); setQuery(''); }}
+                      onClick={() => { setPicked(a); setSearchOpen(false); setQuery(''); }}
                       className="w-full flex items-center gap-2 px-2.5 py-2 hover:bg-zinc-800 text-left text-sm transition-colors">
                       <span className="font-semibold">{a.symbol}</span>
                       <span className="text-xs text-zinc-500 truncate">{a.name}</span>
                       <span className="ml-auto text-[10px] text-zinc-600 uppercase">{a.assetClass === 'crypto' ? 'cripto' : 'acción'}</span>
                     </button>
                   ))}
+                  {manual && <button
+                    onClick={() => { setPicked(manual); setSearchOpen(false); setQuery(''); }}
+                    className="w-full border-t border-zinc-700 px-2.5 py-2 text-left hover:bg-zinc-800"
+                  >
+                    <span className="block text-sm text-emerald-400">Registrar acción {manual.symbol}</span>
+                    <span className="block text-xs text-zinc-400">Símbolo manual; cotización y señales pendientes de verificar.</span>
+                  </button>}
                 </div>
               )}
             </div>
@@ -235,26 +251,24 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
                   <button onClick={() => a && onSelect(a)} className="font-semibold text-sm hover:underline">
                     {p.symbol}
                   </button>
-                  {a ? <SignalBadge signal={a.signal} /> : <span className="text-[10px] text-zinc-600">cargando…</span>}
+                  {a ? <SignalBadge signal={a.signal} /> : <span className="text-[10px] text-zinc-400">Análisis pendiente</span>}
                   {isSell && <span className="text-[10px] text-red-400 font-semibold">¡REVISAR!</span>}
                   <button onClick={() => onRemove(p.assetId)} className="ml-auto text-zinc-500 hover:text-red-400 transition-colors">
                     <Trash2 size={14} />
                   </button>
                 </div>
-                {a && (
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-zinc-400 font-mono">
-                    <span>{fmtPrice(a.price)}</span>
-                    {p.qty > 0 && <span>{p.qty} uds</span>}
-                    {p.avg > 0 && <span>prom. ${p.avg.toLocaleString('es', { maximumFractionDigits: 6 })}</span>}
-                    {p.value !== null && <span>valor: ${p.value.toFixed(2)}</span>}
-                    {p.pnl !== null && (
-                      <span className={p.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                        {p.pnl >= 0 ? '+' : ''}{p.pnl.toFixed(1)}%
-                        {p.pnlUsd !== null && ` (${p.pnlUsd >= 0 ? '+' : ''}$${p.pnlUsd.toFixed(2)})`}
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-zinc-400 font-mono">
+                  {a ? <span>{fmtPrice(a.price)}</span> : <span className="text-amber-300">Sin cotización disponible</span>}
+                  {p.qty > 0 && <span>{p.qty} uds</span>}
+                  {p.avg > 0 && <span>prom. ${p.avg.toLocaleString('es', { maximumFractionDigits: 6 })}</span>}
+                  {p.value !== null && <span>valor: ${p.value.toFixed(2)}</span>}
+                  {p.pnl !== null && (
+                    <span className={p.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      {p.pnl >= 0 ? '+' : ''}{p.pnl.toFixed(1)}%
+                      {p.pnlUsd !== null && ` (${p.pnlUsd >= 0 ? '+' : ''}$${p.pnlUsd.toFixed(2)})`}
+                    </span>
+                  )}
+                </div>
                 {p.lots.length > 1 && (
                   <p className="text-[10px] text-zinc-600 mt-0.5">
                     {p.lots.length} compras: {p.lots.map(l => `${l.quantity}@$${l.price}`).join(' · ')}

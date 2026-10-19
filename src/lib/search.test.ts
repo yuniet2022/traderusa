@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { searchAssets } from './search';
+import { searchAssets, stockSymbolCandidate } from './search';
 
 const fetchMock = vi.fn<typeof fetch>();
 beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal('fetch', fetchMock); });
@@ -12,6 +12,17 @@ describe('asset search through the app API', () => {
   it('returns known symbols when remote search is unavailable', async () => {
     fetchMock.mockRejectedValue(new Error('unavailable'));
     expect((await searchAssets('Bitcoin')).map(a => a.id)).toContain('BTC');
+  });
+  it('distinguishes a search outage from a successful empty search for an unfamiliar symbol', async () => {
+    fetchMock.mockResolvedValueOnce(Response.json({ error: 'unavailable' }, { status: 503 }));
+    await expect(searchAssets('VSNT')).rejects.toMatchObject({ status: 503 });
+    fetchMock.mockResolvedValueOnce(Response.json([]));
+    expect(await searchAssets('VSNT')).toEqual([]);
+  });
+  it('accepts manual stock symbols without inventing a company identity or quote', () => {
+    expect(stockSymbolCandidate(' vsnt ')).toEqual({ id: 'VSNT', symbol: 'VSNT', name: 'VSNT', assetClass: 'stock' });
+    expect(stockSymbolCandidate('brk.b')?.id).toBe('BRK.B');
+    for (const input of ['', 'https://example.com', 'Versant Media', '../VSNT', 'VSNT?']) expect(stockSymbolCandidate(input)).toBeNull();
   });
   it('cancels the request and does not return stale local matches', async () => {
     fetchMock.mockImplementation((_, init) => new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })));

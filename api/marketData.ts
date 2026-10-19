@@ -303,23 +303,32 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
       const signal = AbortSignal.timeout(10_000);
       const local = WATCHLIST.filter(a => `${a.symbol} ${a.name}`.toUpperCase().includes(query.toUpperCase()));
       const remote: Asset[] = [];
-      try {
-        const data = await upstream(`https://query1.finance.yahoo.com/v1/finance/search?${new URLSearchParams({ q: query, quotesCount: '8', newsCount: '0', listsCount: '0' })}`, signal) as { quotes?: { symbol?: string; shortname?: string; longname?: string; quoteType?: string }[] };
-        for (const item of data.quotes ?? []) {
-          if (!item.symbol) continue;
-          const assetClass = item.quoteType === 'CRYPTOCURRENCY' && item.symbol.endsWith('-USD') ? 'crypto' : ['EQUITY', 'ETF'].includes(item.quoteType ?? '') ? 'stock' : null;
-          const id = assetClass === 'crypto' ? item.symbol.slice(0, -4).toUpperCase() : item.symbol.toUpperCase();
-          if (assetClass && /^[A-Z0-9][A-Z0-9.^=-]{0,19}$/.test(id)) remote.push({ id, symbol: id, name: item.shortname || item.longname || id, assetClass });
-        }
-      } catch { /* Watchlist results remain usable while remote search is unavailable. */ }
+      let searchAvailable = false;
+      for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
+        try {
+          const data = await upstream(`https://${host}/v1/finance/search?${new URLSearchParams({ q: query, quotesCount: '8', newsCount: '0', listsCount: '0' })}`, signal) as { quotes?: { symbol?: string; shortname?: string; longname?: string; quoteType?: string }[] };
+          if (!Array.isArray(data.quotes)) throw new MarketUnavailable('Invalid search response');
+          searchAvailable = true;
+          for (const item of data.quotes ?? []) {
+            if (!item.symbol) continue;
+            const assetClass = item.quoteType === 'CRYPTOCURRENCY' && item.symbol.endsWith('-USD') ? 'crypto' : ['EQUITY', 'ETF'].includes(item.quoteType ?? '') ? 'stock' : null;
+            const id = assetClass === 'crypto' ? item.symbol.slice(0, -4).toUpperCase() : item.symbol.toUpperCase();
+            if (assetClass && /^[A-Z0-9][A-Z0-9.^=-]{0,19}$/.test(id)) remote.push({ id, symbol: id, name: item.shortname || item.longname || id, assetClass });
+          }
+          if (remote.length) break;
+        } catch { /* Try the other search host before verifying the exact symbol. */ }
+        if (signal.aborted) break;
+      }
       const exact = query.toUpperCase();
-      if (/^[A-Z]{1,5}$/.test(exact) && ![...local, ...remote].some(a => a.assetClass === 'stock' && a.id === exact) && !signal.aborted) {
+      if (/^[A-Z]{1,5}(?:[.-][A-Z])?$/.test(exact) && ![...local, ...remote].some(a => a.assetClass === 'stock' && a.id === exact) && !signal.aborted) {
         try {
           const meta = (await yahoo(exact, 'stock', '5d', '1d', signal)).chart?.result?.[0]?.meta;
           if (meta?.regularMarketPrice && ['EQUITY', 'ETF'].includes(meta.instrumentType ?? '')) remote.push({ id: exact, symbol: exact, name: meta.longName || meta.shortName || exact, assetClass: 'stock' });
         } catch { /* No verified exact match. */ }
       }
-      return [...new Map([...local, ...remote].map(a => [`${a.assetClass}:${a.id}`, a])).values()].slice(0, 8);
+      if (!searchAvailable && !local.length && !remote.length) throw new MarketUnavailable('Search providers unavailable');
+      return [...new Map([...local, ...remote].map(a => [`${a.assetClass}:${a.id}`, a])).values()]
+        .sort((a, b) => Number(b.id === exact) - Number(a.id === exact)).slice(0, 8);
     });
     return result.value;
   }

@@ -28,7 +28,7 @@ export function createMarketRoutes(service = createMarketService()) {
     const input = z.object({ q: z.string().trim().min(1).max(64) }).safeParse(c.req.query());
     if (!input.success) return c.json({ error: 'Búsqueda inválida.' }, 400);
     try { return c.json(await service.search(input.data.q)); }
-    catch { return c.json({ error: 'Búsqueda no disponible temporalmente.' }, 503); }
+    catch { c.header('Retry-After', '30'); return c.json({ error: 'Búsqueda no disponible temporalmente.' }, 503); }
   });
   return app;
 }

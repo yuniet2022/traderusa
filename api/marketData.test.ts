@@ -138,6 +138,43 @@ describe('server market sources', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it('finds VSNT through the second search host when the first refuses access', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const asset = { symbol: 'VSNT', shortname: 'Provider supplied name', quoteType: 'EQUITY' };
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async input => new URL(String(input)).hostname === 'query1.finance.yahoo.com'
+      ? new Response('', { status: 403 }) : Response.json({ quotes: [asset] }));
+    expect(await createMarketService({ fetch: fetcher }).search('VSNT')).toEqual([
+      { id: 'VSNT', symbol: 'VSNT', name: asset.shortname, assetClass: 'stock' },
+    ]);
+    expect(fetcher.mock.calls.map(call => new URL(String(call[0])).hostname)).toEqual(['query1.finance.yahoo.com', 'query2.finance.yahoo.com']);
+  });
+
+  it('verifies an exact ticker through chart metadata when search has no listing', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async input => String(input).includes('/finance/search')
+      ? Response.json({ quotes: [] })
+      : Response.json({ chart: { result: [{ meta: { regularMarketPrice: 10, instrumentType: 'EQUITY', longName: 'Provider supplied name' } }] } }));
+    expect((await createMarketService({ fetch: fetcher }).search('VSNT'))[0]).toMatchObject({ id: 'VSNT', name: 'Provider supplied name', assetClass: 'stock' });
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not cache a provider outage as a successful empty result', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let clock = now;
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 503 }));
+    const service = createMarketService({ fetch: fetcher, now: () => clock });
+    await expect(service.search('VSNT')).rejects.toThrow();
+    expect(await service.search('AAPL')).toContainEqual(expect.objectContaining({ id: 'AAPL' }));
+    clock += 31000;
+    fetcher.mockImplementation(async () => Response.json({ quotes: [{ symbol: 'VSNT', quoteType: 'EQUITY' }] }));
+    expect((await service.search('VSNT'))[0]?.id).toBe('VSNT');
+  });
+
+  it('preserves successful empty searches without manufacturing an instrument', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async input => String(input).includes('/finance/search')
+      ? Response.json({ quotes: [] }) : Response.json({ chart: { result: [] } }));
+    expect(await createMarketService({ fetch: fetcher }).search('ZZZZZ')).toEqual([]);
+  });
+
   it('aggregates weekly OHLC with actual volumes and Monday UTC timestamps', async () => {
     const daily = Array.from({ length: 200 }, (_, i) => `${new Date(now - (200 - i) * 86_400_000).toISOString().slice(0, 10)},100,105,95,102,2500`);
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async input => String(input).includes('yahoo.com')
