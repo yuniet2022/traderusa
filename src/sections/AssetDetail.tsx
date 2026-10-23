@@ -12,12 +12,19 @@ import { PriceDataStatus } from '@/components/PriceDataStatus';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Briefcase, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { Position } from '@/lib/portfolio';
+import type { AlertRule, AlertKind } from '@/lib/alerts';
+import { PositionContext } from '@/components/PositionContext';
 
 interface Props {
   analysis: AssetAnalysis | null;
   onClose: () => void;
   inPortfolio: boolean;
   onTogglePortfolio: (a: AssetAnalysis) => void;
+  position?: Position;
+  alerts: AlertRule[];
+  onAddAlert: (alert: { assetId: string; symbol: string; kind: AlertKind; price?: number }) => void | Promise<void>;
+  onRemoveAlert: (id: string) => void;
 }
 
 const fmt = (v: number) => v >= 1000 ? v.toLocaleString('es', { maximumFractionDigits: 0 })
@@ -35,7 +42,7 @@ function IndicatorRow({ label, value, hint }: { label: string; value: string; hi
   );
 }
 
-export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfolio }: Props) {
+export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfolio, position, alerts, onAddAlert, onRemoveAlert }: Props) {
   const [chartMode, setChartMode] = useState<'line' | 'candles'>('candles');
   const [learnMode, setLearnMode] = useState(false);
   return (
@@ -86,6 +93,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             </div>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6 [scrollbar-gutter:stable]" data-testid="asset-detail-scroll">
+            <PositionContext analysis={a} position={position} alerts={alerts} onAddAlert={onAddAlert} onRemoveAlert={onRemoveAlert} />
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
             <div className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
               <div className="flex items-center gap-1 px-1 pb-2">
@@ -180,7 +188,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               : 'border-zinc-800 bg-zinc-900/50',
             )}>
               <h4 className="text-sm font-semibold mb-2">
-                Plan de trading — {a.levels.bias === 'LARGO' ? 'Sesgo de compra' : a.levels.bias === 'CORTO' ? 'Sesgo de venta / salida' : 'Esperar'}
+                Escenario técnico — {a.levels.bias === 'LARGO' ? 'Largo' : a.levels.bias === 'CORTO' ? 'Corto' : 'Sin dirección'}
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
                 {[
@@ -196,6 +204,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                 ))}
               </div>
               <p className="text-[11px] text-zinc-400 leading-relaxed">{a.levels.note}</p>
+              <p className="mt-2 text-[11px] text-zinc-300 leading-relaxed">Niveles hipotéticos calculados desde el mercado; no usan tu costo de compra ni sustituyen tus umbrales. El objetivo de un escenario corto queda por debajo de la entrada y no representa una toma de ganancias de tus acciones compradas.</p>
             </div>
 
             <RiskCalculator key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} />

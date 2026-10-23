@@ -131,7 +131,7 @@ const EDU: Record<string, Edu> = {
   },
   tsmom: {
     queMide: 'El rendimiento de los últimos 12 meses. Ganadores recientes tienden a seguir ganando (Moskowitz/Ooi/Pedersen).',
-    comoSeLee: 'Rendimiento positivo a 12 meses = voto de compra; negativo = venta. Cuanto más fuerte el año, más fuerte el voto.',
+    comoSeLee: 'Rendimiento positivo a 12 meses = voto alcista; negativo = bajista. Cuanto más fuerte el año, más fuerte el voto.',
     prediccion: v => v.score > 0
       ? 'Predice continuación alcista a meses: lo que subió durante un año suele seguir subiendo.'
       : 'Predice continuación bajista a meses: lo que lleva un año cayendo suele seguir cayendo.',
@@ -173,7 +173,7 @@ const EDU: Record<string, Edu> = {
   },
   bollinger: {
     queMide: 'Dónde está el precio dentro de sus bandas de volatilidad (20 días, 2 desviaciones). El 95% del tiempo el precio está dentro.',
-    comoSeLee: 'Tocar la banda inferior = barato en el rango (posible compra). Tocar la superior = caro (posible venta). En el gráfico, %B=0 es la banda inferior y %B=1 la superior.',
+    comoSeLee: 'Tocar la banda inferior aporta un voto de reversión alcista; tocar la superior, uno bajista. En el gráfico, %B=0 es la banda inferior y %B=1 la superior. No compara con tu precio de compra.',
     prediccion: v => v.score > 0
       ? 'Predice REBOTE hacia el centro de las bandas: el precio está anormalmente barato.'
       : v.score < 0
@@ -183,7 +183,7 @@ const EDU: Record<string, Edu> = {
   },
   reversal: {
     queMide: 'La reversión de corto plazo (1 mes): lo que más subió en el último mes tiende a corregir, y viceversa.',
-    comoSeLee: 'Es un voto CONTRARIAN: si el mes fue muy verde, vota venta; si fue muy rojo, vota compra. Corrige los excesos de los modelos de momentum.',
+    comoSeLee: 'Es un voto CONTRARIAN: si el mes fue muy verde, vota bajista; si fue muy rojo, vota alcista. Busca posibles reversiones frente a los modelos de momentum.',
     prediccion: v => v.score > 0
       ? 'Predice REBOTE contrarian: la caída del último mes fue exagerada.'
       : v.score < 0
@@ -290,10 +290,10 @@ export function LearnPanel({ analysis: a }: { analysis: AssetAnalysis }) {
       <div className="rounded-lg border border-indigo-900/60 bg-indigo-950/20 p-3 flex gap-2.5">
         <GraduationCap size={16} className="text-indigo-400 shrink-0 mt-0.5" />
         <p className="text-[11px] text-indigo-200/90 leading-relaxed">
-          <strong>Modo aprendizaje.</strong> Cada tarjeta es un modelo real con evidencia académica.
-          Te muestra qué mide, cómo leer su gráfico, qué dice ahora mismo y qué predice.
-          La señal final de la app combina los 8 modelos según el régimen del mercado ({a.regime}).
-          Ningún modelo acierta siempre — úsalos como votos, no como órdenes.
+          <strong>Modo aprendizaje.</strong> Cada tarjeta explica una regla de análisis técnico:
+          qué mide, cómo leer su gráfico y cómo aporta al cálculo.
+          El sesgo final combina las 8 reglas según el régimen del mercado ({a.regime}).
+          No considera tu costo de compra ni constituye una orden de operación.
         </p>
       </div>
       {a.votes.map(v => (

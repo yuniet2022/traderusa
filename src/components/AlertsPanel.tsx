@@ -50,7 +50,7 @@ export function AlertsPanel({ alerts, analyses, onAdd, onRemove }: Props) {
       </SheetTrigger>
       <SheetContent className="bg-zinc-950 border-zinc-800 text-zinc-100 w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle className="text-zinc-100">Alertas de compra / venta</SheetTitle>
+          <SheetTitle className="text-zinc-100">Alertas de mercado y precio</SheetTitle>
         </SheetHeader>
 
         <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2.5">
@@ -72,8 +72,8 @@ export function AlertsPanel({ alerts, analyses, onAdd, onRemove }: Props) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-zinc-900 border-zinc-700">
-              <SelectItem value="signal_buy">Cuando haya señal de COMPRA</SelectItem>
-              <SelectItem value="signal_sell">Cuando haya señal de VENTA</SelectItem>
+              <SelectItem value="signal_buy">Cuando haya sesgo alcista</SelectItem>
+              <SelectItem value="signal_sell">Cuando haya sesgo bajista</SelectItem>
               <SelectItem value="price_above">Cuando el precio suba a…</SelectItem>
               <SelectItem value="price_below">Cuando el precio baje a…</SelectItem>
             </SelectContent>
@@ -97,7 +97,7 @@ export function AlertsPanel({ alerts, analyses, onAdd, onRemove }: Props) {
         <div className="mt-4 space-y-2">
           {alerts.length === 0 && (
             <p className="text-xs text-zinc-500 text-center py-6">
-              Sin alertas. Crea una para que la app te avise cuándo comprar o vender.
+              Sin alertas. Crea una para seguir un precio o un cambio de sesgo técnico.
             </p>
           )}
           {alerts.map(a => (
@@ -114,9 +114,9 @@ export function AlertsPanel({ alerts, analyses, onAdd, onRemove }: Props) {
         </div>
 
         <p className="mt-4 text-[11px] text-zinc-600 leading-relaxed">
-          Las alertas de precio se comprueban cada 30 segundos con datos en vivo; las de señal, en cada
-          análisis (cada 5 minutos). Se guardan solo en este navegador. Mantén la pestaña abierta
-          para recibirlas.
+          Se comprueban con los datos disponibles al actualizar el mercado y las cotizaciones; pueden tener retraso.
+          Se sincronizan con tu cuenta. Mantén la app abierta para recibir notificaciones.
+          Un cambio de sesgo no considera tu costo de compra y no ejecuta órdenes.
         </p>
       </SheetContent>
     </Sheet>

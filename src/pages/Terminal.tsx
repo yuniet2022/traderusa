@@ -43,7 +43,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
   };
 
   const handleQuickAlert = (a: AssetAnalysis) => {
-    // Si está en compra → avisar cuándo vender (salida); si no → avisar cuándo comprar (entrada)
+    // Alert on a change in technical direction; never label it as a personal exit.
     if (a.composite >= 20) {
       addAlert({ assetId: a.asset.id, symbol: a.asset.symbol, kind: 'signal_sell' });
     } else {
@@ -156,7 +156,11 @@ export default function Terminal({ user }: { user: SessionUser }) {
       <AssetDetail
         analysis={selectedAnalysis}
         onClose={() => setSelected(null)}
-        inPortfolio={selected ? portfolio.some(p => p.assetId === selected.asset.id) : false}
+        inPortfolio={selected ? portfolio.some(p => p.assetId === selected.asset.id && p.assetClass === selected.asset.assetClass) : false}
+        position={selected ? portfolio.find(p => p.assetId === selected.asset.id && p.assetClass === selected.asset.assetClass) : undefined}
+        alerts={alerts}
+        onAddAlert={async alert => { if (!await addAlert(alert)) throw new Error('Alert save failed'); }}
+        onRemoveAlert={removeAlert}
         onTogglePortfolio={handleTogglePortfolio}
       />
       <Toaster position="bottom-right" theme="dark" />

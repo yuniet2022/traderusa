@@ -10,6 +10,7 @@ import { SignalBadge } from '@/components/SignalBadge';
 import { Briefcase, Trash2, Plus, Search, Loader2, X, Download, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fmtPrice } from '@/lib/format';
+import { PositionSummary } from '@/components/PositionSummary';
 
 interface Props {
   positions: Position[];
@@ -31,6 +32,7 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
   const manual = candidate && !results.some(a => a.assetClass === 'stock' && a.id === candidate.id) ? candidate : null;
   const [picked, setPicked] = useState<Asset | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   // compras (lots)
   const [lots, setLots] = useState<BuyLot[]>([{ quantity: 0, price: 0 }]);
@@ -111,16 +113,11 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
 
   const avg = avgBuyPrice(lots.filter(l => l.quantity > 0 && l.price > 0));
   const qty = totalQuantity(lots);
+  const editing = picked && positions.some(p => p.assetId === picked.id && p.assetClass === picked.assetClass);
 
   const enriched = positions.map(p => {
-    const a = analyses.find(x => x.asset.id === p.assetId);
-    const pQty = totalQuantity(p.lots);
-    const pAvg = avgBuyPrice(p.lots);
-    const pnl = a && pAvg > 0 ? (a.price / pAvg - 1) * 100 : null;
-    const value = a && pQty > 0 ? a.price * pQty : null;
-    const invested = pQty > 0 && pAvg > 0 ? pQty * pAvg : null;
-    const pnlUsd = value !== null && invested !== null ? value - invested : null;
-    return { ...p, analysis: a, pnl, value, pnlUsd, qty: pQty, avg: pAvg };
+    const a = analyses.find(x => x.asset.id === p.assetId && x.asset.assetClass === p.assetClass);
+    return { ...p, analysis: a };
   });
 
   const needsAttention = enriched.filter(e => e.analysis && e.analysis.composite <= -20);
@@ -150,8 +147,8 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
         </SheetHeader>
 
         {/* Buscador + compras */}
-        <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2.5">
-          <p className="text-xs text-zinc-400 font-medium">Añadir posición:</p>
+        <div ref={formRef} className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2.5">
+          <p className="text-xs text-zinc-400 font-medium">{editing ? 'Editar compras:' : 'Añadir posición:'}</p>
 
           {picked ? (
             <div className="flex items-center gap-2 rounded-md border border-emerald-800 bg-emerald-950/30 px-2.5 py-1.5">
@@ -229,7 +226,7 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
           )}
 
           <Button onClick={submit} disabled={!picked} size="sm" className="w-full gap-1.5 bg-emerald-600 hover:bg-emerald-500">
-            <Plus size={14} /> Añadir a mi portafolio
+            <Plus size={14} /> {editing ? 'Guardar compras' : 'Añadir a mi portafolio'}
           </Button>
         </div>
 
@@ -242,32 +239,29 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
           )}
           {enriched.map(p => {
             const a = p.analysis;
-            const isSell = a && a.composite <= -20;
+            const isBearish = a && a.composite <= -20;
             return (
               <div key={p.assetId}
                 className={cn('rounded-lg border px-3 py-2.5',
-                  isSell ? 'border-red-900/60 bg-red-950/20' : 'border-zinc-800 bg-zinc-900/60')}>
+                  isBearish ? 'border-red-900/60 bg-red-950/20' : 'border-zinc-800 bg-zinc-900/60')}>
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => a && onSelect(a)} className="font-semibold text-sm hover:underline">
                     {p.symbol}
                   </button>
                   {a ? <SignalBadge signal={a.signal} /> : <span className="text-[10px] text-zinc-400">Análisis pendiente</span>}
-                  {isSell && <span className="text-[10px] text-red-400 font-semibold">¡REVISAR!</span>}
                   <button onClick={() => onRemove(p.assetId)} className="ml-auto text-zinc-500 hover:text-red-400 transition-colors">
                     <Trash2 size={14} />
                   </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[11px] text-zinc-400 font-mono">
-                  {a ? <span>{fmtPrice(a.price)}</span> : <span className="text-amber-300">Sin cotización disponible</span>}
-                  {p.qty > 0 && <span>{p.qty} uds</span>}
-                  {p.avg > 0 && <span>prom. ${p.avg.toLocaleString('es', { maximumFractionDigits: 6 })}</span>}
-                  {p.value !== null && <span>valor: ${p.value.toFixed(2)}</span>}
-                  {p.pnl !== null && (
-                    <span className={p.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                      {p.pnl >= 0 ? '+' : ''}{p.pnl.toFixed(1)}%
-                      {p.pnlUsd !== null && ` (${p.pnlUsd >= 0 ? '+' : ''}$${p.pnlUsd.toFixed(2)})`}
-                    </span>
-                  )}
+                <div className="mt-2 space-y-2">
+                  {a ? <p className="text-xs text-zinc-400">Último precio: {fmtPrice(a.price)}</p> : <p className="text-xs text-amber-300">Sin cotización disponible</p>}
+                  <PositionSummary position={p} price={a?.price} compact />
+                  <button className="min-h-9 text-xs text-indigo-300 underline" onClick={() => {
+                    setPicked(a?.asset ?? { id: p.assetId, symbol: p.symbol, name: p.symbol, assetClass: p.assetClass });
+                    setLots(p.lots.length ? p.lots.map(lot => ({ ...lot })) : [{ quantity: 0, price: 0 }]);
+                    setQuery(''); setSearchOpen(false);
+                    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}>Editar compras de {p.symbol}</button>
                 </div>
                 {p.lots.length > 1 && (
                   <p className="text-[10px] text-zinc-600 mt-0.5">
@@ -302,8 +296,8 @@ export function PortfolioPanel({ positions, analyses, onAdd, onSave, onRemove, o
 
         <p className="mt-4 text-[11px] text-zinc-600 leading-relaxed">
           Guardado en tu cuenta (nube) con caché local para arranque rápido. El precio promedio pondera
-          cada compra por su cantidad: (q₁×p₁ + q₂×p₂ + …) ÷ (q₁ + q₂ + …). Las posiciones en señal de
-          VENTA se marcan en rojo.
+          cada compra por su cantidad: (q₁×p₁ + q₂×p₂ + …) ÷ (q₁ + q₂ + …). El sesgo técnico y tu resultado
+          son datos distintos. Las ganancias y pérdidas son latentes y no incluyen costos.
         </p>
       </SheetContent>
     </Sheet>

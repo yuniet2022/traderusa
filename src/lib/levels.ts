@@ -28,7 +28,7 @@ export function computeLevels(s: IndicatorSnapshot, composite: number): TradeLev
       stop: r(p - 2 * atr),
       target1: r(p + 2 * atr),
       target2: r(p + 3 * atr),
-      note: 'Entrada al precio actual o en pullback hacia la SMA20. Stop 2×ATR bajo la entrada; si toca el objetivo 1, sube el stop al precio de entrada.',
+      note: 'Escenario largo hipotético desde el precio de referencia: stop 2×ATR por debajo y objetivos 2×ATR / 3×ATR por encima. No utiliza tus compras registradas.',
     };
   }
   if (composite <= -20) {
@@ -38,7 +38,7 @@ export function computeLevels(s: IndicatorSnapshot, composite: number): TradeLev
       stop: r(p + 2 * atr),
       target1: r(p - 2 * atr),
       target2: r(p - 3 * atr),
-      note: 'Señal de venta: si tienes posición, es nivel de salida. Los niveles aplican para una posición corta (stop 2×ATR sobre la entrada).',
+      note: 'Escenario corto hipotético: stop 2×ATR sobre la entrada y objetivos por debajo. Estos niveles no son una salida calculada para tus posiciones compradas.',
     };
   }
   return {
@@ -47,6 +47,6 @@ export function computeLevels(s: IndicatorSnapshot, composite: number): TradeLev
     stop: r(p - 1.5 * atr),
     target1: r(p + 1.5 * atr),
     target2: r(p + 2.5 * atr),
-    note: 'Sin señal clara (puntuación entre -20 y +20). Lo disciplinado es esperar a que aparezca una señal de COMPRA o VENTA.',
+    note: 'Sesgo neutral (puntuación entre -20 y +20). Los niveles son referencias de volatilidad y no determinan una operación ni consideran tu costo.',
   };
 }

@@ -37,15 +37,15 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
   );
   const buys = analyses.filter(a => a.composite >= 20);
   const myPositions = portfolioAnalyses(analyses, positions);
-  const sellsFromPortfolio = myPositions.filter(a => a.composite <= -20);
+  const bearishPositions = myPositions.filter(a => a.composite <= -20);
 
   return (
     <div className="min-w-0 space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: 'Activos analizados', value: analyses.length, detail: `${quoteCount} con cotización consultada`, color: 'text-zinc-100' },
-          { label: 'Señales de compra', value: buys.length, detail: 'Puntuación de 20 o más', color: 'text-emerald-400' },
-          { label: 'Posiciones en venta', value: sellsFromPortfolio.length, detail: 'Solo de tu portafolio', color: 'text-red-400' },
+          { label: 'Sesgos alcistas', value: buys.length, detail: 'Lectura técnica de 20 o más', color: 'text-emerald-400' },
+          { label: 'Posiciones con sesgo bajista', value: bearishPositions.length, detail: 'Revisar junto a tu costo y riesgo', color: 'text-red-400' },
           { label: 'Mi portafolio', value: positions.length, detail: 'Posiciones registradas', color: 'text-indigo-300' },
         ].map(item => (
           <div key={item.label} className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 sm:p-4">
@@ -91,9 +91,9 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
             </span>
           </label>
           <label className="min-w-0 space-y-1 text-xs text-zinc-400">
-            <span className="block">Señal</span>
-            <select aria-label="Señal" value={signal} onChange={e => setSignal(e.target.value as ScannerSignal)} className="h-11 w-full sm:h-9 sm:w-auto rounded-md border border-zinc-700 bg-zinc-950 px-2 text-zinc-100">
-              <option value="all">Todas</option><option value="buy">Compra</option><option value="sell">Venta</option><option value="neutral">Neutral</option>
+            <span className="block">Sesgo técnico</span>
+            <select aria-label="Sesgo técnico" value={signal} onChange={e => setSignal(e.target.value as ScannerSignal)} className="h-11 w-full sm:h-9 sm:w-auto rounded-md border border-zinc-700 bg-zinc-950 px-2 text-zinc-100">
+              <option value="all">Todos</option><option value="buy">Alcista</option><option value="sell">Bajista</option><option value="neutral">Neutral</option>
             </select>
           </label>
           <label className="min-w-0 space-y-1 text-xs text-zinc-400">
@@ -130,10 +130,10 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
                   <th className="py-2 pr-2 font-medium text-right">Precio</th>
                   <th className="py-2 pr-2 font-medium text-right">Cambio</th>
                   <th className="py-2 pr-2 font-medium">Puntuación</th>
-                  <th className="py-2 pr-2 font-medium">Señal</th>
-                  <th className="py-2 pr-2 font-medium text-right hidden md:table-cell">Entrada</th>
-                  <th className="py-2 pr-2 font-medium text-right hidden md:table-cell">Objetivo</th>
-                  <th className="py-2 pr-2 font-medium text-right hidden md:table-cell">Stop</th>
+                  <th className="py-2 pr-2 font-medium">Sesgo técnico</th>
+                  <th className="py-2 pr-2 font-medium text-right hidden md:table-cell">Referencia</th>
+                  <th className="py-2 pr-2 font-medium text-right hidden md:table-cell">Objetivo técnico</th>
+                  <th className="py-2 pr-2 font-medium text-right hidden md:table-cell">Stop técnico</th>
                   <th className="py-2 pr-4 font-medium w-8"><span className="sr-only">Alerta</span></th>
                 </tr>
               </thead>
@@ -168,7 +168,7 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
                       <button
                         onClick={e => { e.stopPropagation(); onQuickAlert(a); }}
                         aria-label={`Crear alerta para ${a.asset.symbol}`}
-                        title={a.composite >= 20 ? 'Crear alerta: avísame cuándo vender' : 'Crear alerta: avísame cuándo comprar'}
+                        title={a.composite >= 20 ? 'Avisar si aparece sesgo bajista' : 'Avisar si aparece sesgo alcista'}
                         className="text-zinc-500 hover:text-amber-400 transition-colors">
                         <BellPlus size={15} />
                       </button>
@@ -182,7 +182,7 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
         )}
         <p className="text-[11px] leading-relaxed text-zinc-400 px-3 sm:px-4 py-3 border-t border-zinc-800">
           Fuentes gratuitas con posible retraso; cada precio indica origen y hora ·
-          Entrada/Objetivo/Stop calculados con volatilidad (ATR) · Las alertas automáticas avisan cuando cambia una señal · No es asesoría financiera.
+          Niveles técnicos hipotéticos calculados con ATR; no usan tu costo de compra · Consulta tu resultado y tus umbrales en el detalle · Las alertas avisan de cambios técnicos, no ejecutan órdenes.
         </p>
       </div>
     </div>

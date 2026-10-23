@@ -1,5 +1,6 @@
 import type { SignalDirection } from '@/types';
 import { cn } from '@/lib/utils';
+import { marketSignalLabel } from '@/lib/signals';
 
 const styles: Record<SignalDirection, string> = {
   'COMPRA FUERTE': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
@@ -15,7 +16,7 @@ export function SignalBadge({ signal, className }: { signal: SignalDirection; cl
       'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold tracking-wide whitespace-nowrap',
       styles[signal], className,
     )}>
-      {signal}
+      {marketSignalLabel(signal)}
     </span>
   );
 }

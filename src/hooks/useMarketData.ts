@@ -11,6 +11,7 @@ import {
 import { type Position, loadPortfolio, savePortfolio, makePosition } from '@/lib/portfolio';
 import { trpc } from '@/providers/trpc';
 import { toast } from 'sonner';
+import { marketChangeMessage } from '@/lib/signals';
 
 const CUSTOM_KEY = 'tr_custom_assets_v1';
 
@@ -34,18 +35,8 @@ async function analyzeAsset(asset: Asset, quotes: Record<string, Quote>, previou
 function notifySignalChanges(previous: AssetAnalysis[], next: AssetAnalysis[]) {
   const prevMap = new Map(previous.map(a => [`${a.asset.assetClass}:${a.asset.id}`, a.signal]));
   for (const a of next) {
-    if (a.historyStale) continue;
     const prev = prevMap.get(`${a.asset.assetClass}:${a.asset.id}`);
-    if (!prev || prev === a.signal) continue;
-    const isBuy = a.signal === 'COMPRA' || a.signal === 'COMPRA FUERTE';
-    const isSell = a.signal === 'VENTA' || a.signal === 'VENTA FUERTE';
-    const wasBuy = prev === 'COMPRA' || prev === 'COMPRA FUERTE';
-    const wasSell = prev === 'VENTA' || prev === 'VENTA FUERTE';
-    let msg: string | null = null;
-    if (isBuy && !wasBuy) msg = `🟢 ${a.asset.symbol}: nueva señal de ${a.signal} (score ${a.composite.toFixed(0)})`;
-    else if (isSell && !wasSell) msg = `🔴 ${a.asset.symbol}: nueva señal de ${a.signal} (score ${a.composite.toFixed(0)})`;
-    else if (!isBuy && wasBuy) msg = `⚪ ${a.asset.symbol}: la señal de compra se desactivó (ahora ${a.signal})`;
-    else if (!isSell && wasSell) msg = `⚪ ${a.asset.symbol}: la señal de venta se desactivó (ahora ${a.signal})`;
+    const msg = marketChangeMessage(prev, a);
     if (msg) {
       toast(msg, { duration: 12000 });
       fireNotification('TradeRadar', msg);
@@ -81,7 +72,7 @@ export function useMarketData(userId: number | null) {
   });
   const savePosMut = trpc.portfolio.save.useMutation();
   const removePosMut = trpc.portfolio.remove.useMutation();
-  const addAlertMut = trpc.alerts.add.useMutation();
+  const { mutateAsync: persistAlert } = trpc.alerts.add.useMutation();
   const removeAlertMut = trpc.alerts.remove.useMutation();
   const hydratedFor = useRef<number | null>(null);
   const addAssetRef = useRef<(a: Asset) => Promise<AssetAnalysis | null>>(async () => null);
@@ -299,17 +290,21 @@ export function useMarketData(userId: number | null) {
   }, [userId, removePosMut.mutate]);
 
   const addAlert = useCallback(async (partial: Parameters<typeof makeAlert>[0]) => {
-    await ensureNotifyPermission();
-    setAlerts(prev => {
-      const next = [...prev, makeAlert(partial)];
-      saveAlerts(next);
-      return next;
-    });
-    if (userId) {
-      addAlertMut.mutate({ assetId: partial.assetId, symbol: partial.symbol, kind: partial.kind, price: partial.price });
+    try {
+      await ensureNotifyPermission();
+      if (userId) await persistAlert({ assetId: partial.assetId, symbol: partial.symbol, kind: partial.kind, price: partial.price });
+      setAlerts(prev => {
+        const next = [...prev.filter(a => a.assetId !== partial.assetId || a.kind !== partial.kind), makeAlert(partial)];
+        saveAlerts(next);
+        return next;
+      });
+      toast.success('Alerta guardada: ' + alertLabel(partial as AlertRule));
+      return true;
+    } catch {
+      toast.error('No se pudo guardar la alerta. Reintenta.');
+      return false;
     }
-    toast.success('Alerta creada: ' + alertLabel(partial as AlertRule));
-  }, [userId, addAlertMut.mutate]);
+  }, [userId, persistAlert]);
 
   const removeAlert = useCallback((id: string) => {
     const target = alertsRef.current.find(a => a.id === id);

@@ -56,8 +56,8 @@ export function alertLabel(a: AlertRule): string {
   switch (a.kind) {
     case 'price_above': return `${a.symbol} suba a $${a.price}`;
     case 'price_below': return `${a.symbol} baje a $${a.price}`;
-    case 'signal_buy': return `señal de COMPRA en ${a.symbol}`;
-    case 'signal_sell': return `señal de VENTA en ${a.symbol}`;
+    case 'signal_buy': return `sesgo alcista en ${a.symbol} (lectura técnica)`;
+    case 'signal_sell': return `sesgo bajista en ${a.symbol} (lectura técnica)`;
   }
 }
 
