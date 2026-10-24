@@ -4,13 +4,9 @@ import { WATCHLIST } from '../contracts/watchlist';
 import { setTimeout as delay } from 'node:timers/promises';
 import { parseKrakenFlow } from './orderFlow';
 import type { TradeFlow } from '../contracts/orderFlow';
+import { networkErrorCode } from './networkError';
 
 export class MarketUnavailable extends Error {}
-function networkCode(error: unknown): string {
-  const code = error instanceof Error ? (error.cause as { code?: unknown } | undefined)?.code : undefined;
-  return typeof code === 'string' && new Set(['ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH', 'EHOSTUNREACH', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'DEPTH_ZERO_SELF_SIGNED_CERT']).has(code)
-    ? code : 'NETWORK_OR_TIMEOUT';
-}
 type Entry = { value: unknown; at: number; ttl: number };
 type Chart = { chart?: { result?: { timestamp?: number[]; meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number; regularMarketTime?: number; instrumentType?: string; longName?: string; shortName?: string }; indicators?: { quote?: { open?: (number | null)[]; high?: (number | null)[]; low?: (number | null)[]; close?: (number | null)[]; volume?: (number | null)[] }[] } }[] } };
 const TF = {
@@ -73,11 +69,11 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
   const logged = new Map<string, number>();
   let active = 0;
   const waiting: { resume: () => void; signal: AbortSignal }[] = [];
-  function report(source: string, code: string) {
-    const key = `${source}:${code}`;
+  function report(source: string, code: string, details?: { phase: string; elapsedMs: number; requestTimeoutMs: number }) {
+    const key = `${source}:${code}:${details?.phase ?? ''}`;
     if ((logged.get(key) ?? 0) > now()) return;
     logged.set(key, now() + 60_000);
-    console.warn('[MARKET_SOURCE_ERROR]', JSON.stringify({ source, code }));
+    console.warn('[MARKET_SOURCE_ERROR]', JSON.stringify({ source, code, ...details }));
   }
 
   async function acquire(signal: AbortSignal) {
@@ -101,6 +97,8 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
     const host = new URL(url).hostname;
     if ((cooldown.get(host) ?? 0) > now()) throw new MarketUnavailable('Provider cooling down');
     await acquire(signal);
+    let phase: 'spacing' | 'headers' | 'body' = 'spacing';
+    const startedAt = now();
     try {
       signal.throwIfAborted();
       if ((cooldown.get(host) ?? 0) > now()) throw new MarketUnavailable('Provider cooling down');
@@ -110,6 +108,7 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
       if (start > now()) await delay(start - now(), undefined, { signal });
       signal.throwIfAborted();
       if ((cooldown.get(host) ?? 0) > now()) throw new MarketUnavailable('Provider cooling down');
+      phase = 'headers';
       const res = await request(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]), headers: { Accept: text ? 'text/csv' : 'application/json', 'User-Agent': 'TraderUSA/1.0' } });
       if (!res.ok) {
         if ([401, 403, 429, 451].includes(res.status)) {
@@ -122,6 +121,7 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
         throw new MarketUnavailable(`Provider HTTP ${res.status}`);
       }
       // Bound the payload while streaming so a provider cannot exhaust the app heap.
+      phase = 'body';
       const reader = res.body?.getReader();
       if (!reader) throw new MarketUnavailable('Empty provider response');
       let size = 0; const chunks: Uint8Array[] = [];
@@ -137,9 +137,11 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
       const raw = Buffer.concat(chunks).toString('utf8');
       return text ? raw : JSON.parse(raw);
     } catch (error) {
-      if (error instanceof Error && ['TimeoutError', 'AbortError', 'TypeError'].includes(error.name)) {
-        cooldown.set(host, now() + 15_000);
-        report(host, networkCode(error));
+      const code = networkErrorCode(error);
+      if (error instanceof Error && (['TimeoutError', 'AbortError', 'TypeError'].includes(error.name) || code !== 'NETWORK_ERROR_UNCLASSIFIED')) {
+        // A local queue/spacing deadline is not evidence that this provider is down.
+        if (phase !== 'spacing' && !signal.aborted) cooldown.set(host, now() + 15_000);
+        report(host, signal.aborted ? 'REQUEST_BUDGET_EXPIRED' : code, { phase, elapsedMs: Math.max(0, now() - startedAt), requestTimeoutMs: timeout });
       }
       throw error;
     } finally { release(); }

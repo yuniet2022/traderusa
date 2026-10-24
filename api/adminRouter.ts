@@ -7,6 +7,9 @@ import type { TrpcContext } from "./context";
 import { getDb } from "./queries/connection";
 import { users, accessCodes } from "@db/schema";
 import { readSessionCookie } from "./sessionUtil";
+import { createMarketDiagnostics } from './marketDiagnostics';
+
+const diagnoseMarket = createMarketDiagnostics();
 
 async function requireAdmin(ctx: TrpcContext): Promise<number> {
   const session = readSessionCookie(ctx.req);
@@ -20,6 +23,10 @@ async function requireAdmin(ctx: TrpcContext): Promise<number> {
 }
 
 export const adminRouter = createRouter({
+  marketDiagnostics: publicQuery.query(async ({ ctx }) => {
+    await requireAdmin(ctx);
+    return diagnoseMarket();
+  }),
   /** Genera un código de acceso de un solo uso. */
   createCode: publicQuery
     .input(z.object({

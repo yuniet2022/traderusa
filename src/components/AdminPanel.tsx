@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ShieldCheck, Copy, Plus, Ban, Loader2, Ticket, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { MarketDiagnostics } from './MarketDiagnostics';
 
 function fmtDate(ts: number | null): string {
   if (!ts) return '—';
@@ -55,6 +56,7 @@ export function AdminPanel() {
         <SheetHeader>
           <SheetTitle className="text-zinc-100">Panel de administración</SheetTitle>
         </SheetHeader>
+        <MarketDiagnostics />
 
         {/* Generar código */}
         <div className="mt-4 rounded-lg border border-amber-800/50 bg-amber-950/20 p-3 space-y-2.5">
