@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import type { Position } from '@/lib/portfolio';
 import type { AlertRule, AlertKind } from '@/lib/alerts';
 import { PositionContext } from '@/components/PositionContext';
+import { MarketEvidencePanel } from '@/components/MarketEvidencePanel';
 
 interface Props {
   analysis: AssetAnalysis | null;
@@ -122,6 +123,8 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             <SetupPanel asset={a.asset} />
             </div>
             </div>
+
+            <MarketEvidencePanel key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} position={position} />
 
             <Button
               variant="outline"

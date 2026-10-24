@@ -30,5 +30,11 @@ export function createMarketRoutes(service = createMarketService()) {
     try { return c.json(await service.search(input.data.q)); }
     catch { c.header('Retry-After', '30'); return c.json({ error: 'Búsqueda no disponible temporalmente.' }, 503); }
   });
+  app.get('/flow', async c => {
+    const input = z.object({ assetClass: marketClass, id: marketSymbol }).safeParse(c.req.query());
+    if (!input.success) return c.json({ error: 'Activo inválido.' }, 400);
+    try { return c.json(await service.flow(input.data.assetClass, input.data.id)); }
+    catch { c.header('Retry-After', '30'); return c.json({ error: 'Flujo de operaciones no disponible para este activo.' }, 503); }
+  });
   return app;
 }

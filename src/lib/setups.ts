@@ -68,8 +68,8 @@ export function detectSetups(intraday: Candle[], daily: Candle[]): ConfluencePla
   {
     let direction: 'long' | 'short' | null = null;
     let detail = `precio entre PDL ($${pdl.toFixed(2)}) y PDH ($${pdh.toFixed(2)}) — dentro del rango de ayer`;
-    if (price > pdh) { direction = 'long'; detail = `precio sobre el máximo de ayer ($${pdh.toFixed(2)}) — fortaleza, los compradores controlan`; }
-    else if (price < pdl) { direction = 'short'; detail = `precio bajo el mínimo de ayer ($${pdl.toFixed(2)}) — debilidad, los vendedores controlan`; }
+    if (price > pdh) { direction = 'long'; detail = `precio sobre el máximo de ayer ($${pdh.toFixed(2)}) — ruptura alcista; no mide flujo ejecutado`; }
+    else if (price < pdl) { direction = 'short'; detail = `precio bajo el mínimo de ayer ($${pdl.toFixed(2)}) — ruptura bajista; no mide flujo ejecutado`; }
     setups.push({ id: 'pdh_pdl', name: 'PDH / PDL (máx-mín ayer)', direction, detail });
   }
 
@@ -146,14 +146,14 @@ export function detectSetups(intraday: Candle[], daily: Candle[]): ConfluencePla
         const held = price > orHigh;
         if (retested && held) {
           direction = 'long';
-          detail = `rompió $${orHigh.toFixed(2)}, volvió a probarlo y aguantó — entrada de alta probabilidad`;
+          detail = `rompió $${orHigh.toFixed(2)}, volvió a probarlo y aguantó — retest alcista observado`;
         } else if (!retested) detail = 'rompió pero aún no ha hecho retest — esperar el retest, no perseguir';
       } else {
         const retested = post.some(c => c.high >= orLow - orSize * 0.15);
         const held = price < orLow;
         if (retested && held) {
           direction = 'short';
-          detail = `rompió $${orLow.toFixed(2)} a la baja, volvió a probarlo y aguantó — entrada de alta probabilidad`;
+          detail = `rompió $${orLow.toFixed(2)} a la baja, volvió a probarlo y aguantó — retest bajista observado`;
         } else if (!retested) detail = 'rompió pero aún no ha hecho retest — esperar el retest, no perseguir';
       }
     }

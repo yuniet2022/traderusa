@@ -3,7 +3,7 @@ export class MarketRequestError extends Error {
   readonly status: number;
   constructor(message: string, status: number) { super(message); this.status = status; }
 }
-export async function marketJSON<T>(path: 'history' | 'quotes' | 'search', query: Record<string, string>, signal?: AbortSignal): Promise<T> {
+export async function marketJSON<T>(path: 'history' | 'quotes' | 'search' | 'flow', query: Record<string, string>, signal?: AbortSignal): Promise<T> {
   signal?.throwIfAborted();
   const controller = new AbortController();
   const abort = () => controller.abort(signal?.reason);

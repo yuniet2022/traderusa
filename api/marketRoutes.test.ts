@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMarketRoutes } from './marketRoutes';
 import { createSessionToken, SESSION_COOKIE } from './sessionUtil';
 
-const service = { history: vi.fn(), quotes: vi.fn(), search: vi.fn() };
+const service = { history: vi.fn(), quotes: vi.fn(), search: vi.fn(), flow: vi.fn() };
 const app = createMarketRoutes(service);
 const headers = { Cookie: `${SESSION_COOKIE}=${createSessionToken(1, 'market-test')}` };
 beforeEach(() => { vi.resetAllMocks(); });
@@ -30,5 +30,14 @@ describe('authenticated market API', () => {
     expect(response.status).toBe(503);
     expect(response.headers.get('retry-after')).toBe('30');
     expect(await response.text()).not.toContain('implementation details');
+  });
+  it('protects and validates the trade-flow endpoint', async () => {
+    expect((await app.request('/flow?assetClass=crypto&id=BTC')).status).toBe(401);
+    expect((await app.request('/flow?assetClass=crypto&id=https%3A%2F%2Finternal', { headers })).status).toBe(400);
+    expect(service.flow).not.toHaveBeenCalled();
+    service.flow.mockResolvedValue({ source: 'Kraken', trades: 20 });
+    const response = await app.request('/flow?assetClass=crypto&id=btc', { headers });
+    expect(response.status).toBe(200);
+    expect(service.flow).toHaveBeenCalledWith('crypto', 'BTC');
   });
 });

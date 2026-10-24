@@ -2,6 +2,8 @@ import type { Asset, AssetClass, Candle, CandleHistory, Quote } from '../src/typ
 import type { MarketTimeframe } from '../contracts/market';
 import { WATCHLIST } from '../contracts/watchlist';
 import { setTimeout as delay } from 'node:timers/promises';
+import { parseKrakenFlow } from './orderFlow';
+import type { TradeFlow } from '../contracts/orderFlow';
 
 export class MarketUnavailable extends Error {}
 function networkCode(error: unknown): string {
@@ -333,5 +335,13 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
     return result.value;
   }
 
-  return { history, quotes, search };
+  async function flow(assetClass: AssetClass, id: string): Promise<TradeFlow> {
+    if (assetClass !== 'crypto') throw new MarketUnavailable('No stock trade feed configured');
+    const result = await remember(`flow:${id}`, 10_000, 30_000, async () => {
+      const data = await upstream(`https://api.kraken.com/0/public/Trades?pair=${krakenPair(id)}&count=1000`, AbortSignal.timeout(6000));
+      return parseKrakenFlow(data, `${id}/USD`, now());
+    });
+    return { ...result.value, cached: result.cached, stale: now() - result.value.fetchedAt >= 10_000 || now() - result.value.lastTradeAt > 30_000 };
+  }
+  return { history, quotes, search, flow };
 }
