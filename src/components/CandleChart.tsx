@@ -12,6 +12,8 @@ interface Props {
   asset: Asset;
   height?: number;
   initialTimeframe?: Timeframe;
+  timeframe?: Timeframe;
+  onTimeframeChange?: (value: Timeframe) => void;
   adaptiveHeight?: boolean;
 }
 
@@ -26,8 +28,10 @@ function fmtTime(t: number, tf: Timeframe): string {
   return d.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function CandleChart({ asset, height = 300, initialTimeframe = '1d', adaptiveHeight = false }: Props) {
-  const [tf, setTf] = useState<Timeframe>(initialTimeframe);
+export function CandleChart({ asset, height = 300, initialTimeframe = '1d', timeframe, onTimeframeChange, adaptiveHeight = false }: Props) {
+  const [localTimeframe, setLocalTimeframe] = useState<Timeframe>(initialTimeframe);
+  const tf = timeframe ?? localTimeframe;
+  const setTf = (value: Timeframe) => { setLocalTimeframe(value); onTimeframeChange?.(value); };
   const { history, loading, error, refresh } = useCandleHistory(asset, tf);
   const candles = history?.candles ?? null;
   const { containerRef, width } = useChartWidth();

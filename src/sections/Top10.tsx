@@ -59,7 +59,7 @@ export function Top10({ analyses, positions, onSelect }: Props) {
       <div className="rounded-lg border border-emerald-900/50 bg-emerald-950/10 overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-emerald-900/40 bg-emerald-950/30">
           <TrendingUp size={15} className="text-emerald-400" />
-          <h3 className="text-sm font-semibold text-emerald-300">Top {buys.length} lecturas alcistas</h3>
+          <h3 className="text-sm font-semibold text-emerald-300">Top {buys.length} lecturas alcistas diarias</h3>
         </div>
         {buys.length === 0 ? (
           <p className="px-3 py-6 text-xs text-zinc-500 text-center">

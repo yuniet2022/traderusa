@@ -14,6 +14,7 @@ import { useMarketClock } from "@/hooks/useMarketClock";
 import { reviewPositionExit } from "@/lib/exitReview";
 import { fmtPrice } from "@/lib/format";
 import { Button } from "./ui/button";
+import { intradayAction, type IntradayInterval } from "@/lib/intraday";
 
 const labels: Record<EntryStatus, string> = {
   ready: "Confirmado para evaluar",
@@ -28,6 +29,9 @@ interface Props {
   alerts: AlertRule[];
   onUsePlan: (plan: EntryPlan) => void;
   onReading: (reading: EntryReading) => void;
+  timeframe?: IntradayInterval;
+  onTimeframeChange?: (value: IntradayInterval) => void;
+  onWatch?: () => void;
 }
 export function SetupPanel({
   analysis: a,
@@ -35,8 +39,16 @@ export function SetupPanel({
   alerts,
   onUsePlan,
   onReading,
+  timeframe: controlledTimeframe,
+  onTimeframeChange,
+  onWatch,
 }: Props) {
-  const [timeframe, setTimeframe] = useState<"1m" | "5m" | "15m">("5m");
+  const [localTimeframe, setLocalTimeframe] = useState<IntradayInterval>("5m");
+  const timeframe = controlledTimeframe ?? localTimeframe;
+  const setTimeframe = (value: IntradayInterval) => {
+    setLocalTimeframe(value);
+    onTimeframeChange?.(value);
+  };
   const now = useMarketClock();
   const { history, error, loading, refresh } = useCandleHistory(
     a.asset,
@@ -51,6 +63,7 @@ export function SetupPanel({
     onReading(reading);
   }, [onReading, reading]);
   const exit = position ? reviewPositionExit(position, reading, alerts) : null;
+  const action = intradayAction(reading, position, alerts);
   const when = (value: number) =>
     new Date(value).toLocaleTimeString("es", {
       hour: "2-digit",
@@ -64,7 +77,9 @@ export function SetupPanel({
       className="min-w-0 rounded-xl border border-indigo-800/60 bg-indigo-950/15 p-3 space-y-3"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Entradas y salidas por setups</h3>
+        <h3 className="text-sm font-semibold">
+          Day trading · Entradas y salidas
+        </h3>
         <label className="text-xs text-zinc-300">
           Velas{" "}
           <select
@@ -78,6 +93,24 @@ export function SetupPanel({
             <option value="15m">15 min</option>
           </select>
         </label>
+      </div>
+      <div
+        className={`rounded-lg border p-3 space-y-1 ${action.kind === "buy" ? "border-emerald-700 bg-emerald-950/25" : action.kind === "sell" ? "border-amber-700 bg-amber-950/25" : "border-zinc-700"}`}
+      >
+        <p className="text-sm font-semibold">{action.title}</p>
+        <p className="text-xs text-zinc-300">
+          {action.kind === "buy" || action.kind === "sell"
+            ? action.detail
+            : "El detector no ha confirmado una operación. El motivo y la vigencia aparecen debajo."}
+        </p>
+        {onWatch && (
+          <button
+            onClick={onWatch}
+            className="min-h-10 text-xs text-indigo-300 underline"
+          >
+            Activar avisos de day trading
+          </button>
+        )}
       </div>
       <p
         role="status"

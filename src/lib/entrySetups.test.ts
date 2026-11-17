@@ -256,6 +256,20 @@ describe("causal setup confirmation", () => {
     expect(result.dataReady).toBe(true);
     expect(result.reasons.join(" ")).toContain("ambas direcciones");
   });
+  it("does not let failed opening breaks block an otherwise clean market for the entire day", () => {
+    const rows = [
+      ...previous,
+      ...today,
+      bar(open + 2100, 100),
+      bar(open + 2400, 99),
+      ...Array.from({ length: 21 }, (_, i) => bar(open + 2700 + i * 300, 102)),
+    ];
+    const at = (rows.at(-1)!.time + 300) * 1000 + 1000;
+    const result = scan({ ...history(rows), fetchedAt: at, priceAsOf: at }, at);
+    expect(result.dataReady).toBe(true);
+    expect(result.entryAllowed).toBe(true);
+    expect(result.reasons.join(" ")).not.toContain("ambas direcciones");
+  });
   it("does not use a later opening-range low to generate an earlier support reclaim", () => {
     const result = detectEntrySetups(asset, history(), [], now);
     expect(

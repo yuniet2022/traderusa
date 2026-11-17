@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dashboard } from '@/sections/Dashboard';
 import { AssetDetail } from '@/sections/AssetDetail';
@@ -9,7 +9,9 @@ import { PortfolioPanel } from '@/components/PortfolioPanel';
 import { AdminPanel } from '@/components/AdminPanel';
 import { useMarketData } from '@/hooks/useMarketData';
 import { useAuth, type SessionUser } from '@/hooks/useAuth';
-import { ensureNotifyPermission } from '@/lib/alerts';
+import { useDayTrading } from '@/hooks/useDayTrading';
+import { DayTrading } from '@/sections/DayTrading';
+import type { IntradayInterval } from '@/lib/intraday';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import type { Asset, AssetAnalysis } from '@/types';
@@ -21,22 +23,22 @@ export default function Terminal({ user }: { user: SessionUser }) {
   const { analyses, loading, marketNotice, progress, quoteCount, updatedAt, refresh, addAsset, alerts, addAlert, removeAlert, portfolio, addPosition, removePosition } = useMarketData(user.id);
   const { logout } = useAuth();
   const [selected, setSelected] = useState<AssetAnalysis | null>(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [detailInterval, setDetailInterval] = useState<IntradayInterval>('5m');
+  const monitor = useDayTrading(analyses, portfolio, alerts);
+  const openAnalysis = (analysis: AssetAnalysis, interval: IntradayInterval = '5m') => {
+    setDetailInterval(interval); setSelected(analysis);
+  };
   const selectedAnalysis = selected
     ? analyses.find(a => a.asset.id === selected.asset.id && a.asset.assetClass === selected.asset.assetClass) ?? selected
     : null;
-
-  // pedir permiso de notificaciones al abrir para las alertas automáticas
-  useEffect(() => {
-    const t = setTimeout(() => { ensureNotifyPermission(); }, 2500);
-    return () => clearTimeout(t);
-  }, []);
 
   const handlePick = async (asset: Asset) => {
     toast.loading(`Analizando ${asset.symbol}…`, { id: 'pick' });
     const analysis = await addAsset(asset);
     toast.dismiss('pick');
     if (analysis) {
-      setSelected(analysis);
+      openAnalysis(analysis);
     } else {
       toast.error(`No se encontraron datos suficientes para ${asset.symbol}`);
     }
@@ -79,7 +81,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
               onAdd={addAsset}
               onSave={addPosition}
               onRemove={removePosition}
-              onSelect={setSelected}
+              onSelect={openAnalysis}
             />
             <AlertsPanel alerts={alerts} analyses={analyses} onAdd={addAlert} onRemove={removeAlert} />
             <div className="hidden md:flex flex-col items-end">
@@ -90,7 +92,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
                 </span>
                 <span className="text-[11px] text-zinc-400">consulta cada 30 s</span>
               </div>
-              <span className="text-[10px] text-zinc-600">alertas automáticas activadas</span>
+              <span className="text-[10px] text-zinc-400">{monitor.enabled ? 'day trading en vigilancia' : 'contexto diario y alertas de precio'}</span>
             </div>
             <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-800">
               {user.isAdmin && <AdminPanel />}
@@ -111,11 +113,12 @@ export default function Terminal({ user }: { user: SessionUser }) {
             Contacta al administrador para renovarla y no perder acceso.
           </div>
         )}
-        <Tabs defaultValue="dashboard">
-          <TabsList className="mb-4 grid h-auto w-full grid-cols-3 sm:mb-5 sm:inline-flex sm:w-fit sm:flex-wrap">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4 grid h-auto w-full grid-cols-2 sm:mb-5 sm:inline-flex sm:w-fit sm:flex-wrap">
             <TabsTrigger value="dashboard" className="h-auto min-h-11 gap-1 px-2 text-xs whitespace-normal sm:min-h-8 sm:text-sm">
-              <LayoutDashboard size={14} className="hidden sm:block" /> Señales
+              <LayoutDashboard size={14} className="hidden sm:block" /> Contexto diario
             </TabsTrigger>
+            <TabsTrigger value="daytrading" className="h-auto min-h-11 gap-1 px-2 text-xs whitespace-normal sm:min-h-8 sm:text-sm">Day trading{monitor.enabled ? ' · activo' : ''}</TabsTrigger>
             <TabsTrigger value="research" className="h-auto min-h-11 gap-1 px-2 text-xs whitespace-normal sm:min-h-8 sm:text-sm">
               <BookOpen size={14} className="hidden sm:block" /> Investigación
             </TabsTrigger>
@@ -130,10 +133,14 @@ export default function Terminal({ user }: { user: SessionUser }) {
               updatedAt={updatedAt}
               marketNotice={marketNotice}
               progress={progress}
-              onSelect={setSelected}
+              onSelect={openAnalysis}
+              onDayTrading={() => setActiveTab('daytrading')}
               onRefresh={refresh}
               onQuickAlert={handleQuickAlert}
             />
+          </TabsContent>
+          <TabsContent value="daytrading">
+            <DayTrading monitor={monitor} analyses={analyses} onSelect={openAnalysis} />
           </TabsContent>
           <TabsContent value="research">
             <Research />
@@ -154,7 +161,10 @@ export default function Terminal({ user }: { user: SessionUser }) {
       </footer>
 
       <AssetDetail
+        key={`${selected?.asset.assetClass}:${selected?.asset.id}:${detailInterval}`}
         analysis={selectedAnalysis}
+        initialTimeframe={detailInterval}
+        onWatchIntraday={interval => { monitor.setInterval(interval); monitor.start(); setSelected(null); setActiveTab('daytrading'); }}
         onClose={() => setSelected(null)}
         inPortfolio={selected ? portfolio.some(p => p.assetId === selected.asset.id && p.assetClass === selected.asset.assetClass) : false}
         position={selected ? portfolio.find(p => p.assetId === selected.asset.id && p.assetClass === selected.asset.assetClass) : undefined}

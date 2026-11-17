@@ -23,9 +23,10 @@ interface Props {
   onSelect: (a: AssetAnalysis) => void;
   onRefresh: () => void;
   onQuickAlert: (a: AssetAnalysis) => void;
+  onDayTrading: () => void;
 }
 
-export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt, marketNotice, progress, onSelect, onRefresh, onQuickAlert }: Props) {
+export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt, marketNotice, progress, onSelect, onRefresh, onQuickAlert, onDayTrading }: Props) {
   const [filter, setFilter] = useState<'all' | 'stock' | 'crypto'>('all');
   const [query, setQuery] = useState('');
   const [signal, setSignal] = useState<ScannerSignal>('all');
@@ -41,10 +42,14 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
 
   return (
     <div className="min-w-0 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-indigo-900/60 bg-indigo-950/20 p-3">
+        <p className="text-xs text-zinc-300">Este panel usa velas diarias. Sus lecturas alcistas no son el número de oportunidades intradía.</p>
+        <Button variant="outline" size="sm" className="min-h-10 h-auto whitespace-normal" onClick={onDayTrading}>Ver compras y salidas de day trading</Button>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: 'Activos analizados', value: analyses.length, detail: `${quoteCount} con cotización consultada`, color: 'text-zinc-100' },
-          { label: 'Sesgos alcistas', value: buys.length, detail: 'Lectura técnica de 20 o más', color: 'text-emerald-400' },
+          { label: 'Sesgos alcistas diarios', value: buys.length, detail: 'Contexto diario; no es una entrada intradía', color: 'text-emerald-400' },
           { label: 'Posiciones con sesgo bajista', value: bearishPositions.length, detail: 'Revisar junto a tu costo y riesgo', color: 'text-red-400' },
           { label: 'Mi portafolio', value: positions.length, detail: 'Posiciones registradas', color: 'text-indigo-300' },
         ].map(item => (

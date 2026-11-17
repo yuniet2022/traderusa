@@ -287,7 +287,9 @@ export function detectEntrySetups(
       up = false,
       down = false;
     for (const c of today.filter(
-      c => c.time * 1000 >= session.open + 30 * 60000
+      c =>
+        c.time * 1000 >= session.open + 30 * 60000 &&
+        (c.time + intervalSeconds) * 1000 > now - 60 * 60000
     )) {
       const side = c.close > range.high ? 1 : c.close < range.low ? -1 : 0;
       if (outside && !side) reentries++;
@@ -297,7 +299,7 @@ export function detectEntrySetups(
     }
     if (reentries >= 2 || (up && down))
       reasons.push(
-        "Rupturas fallidas o en ambas direcciones: esperar estructura más clara para una nueva entrada."
+        "Rupturas fallidas o en ambas direcciones durante la última hora: esperar estructura más clara para una nueva entrada."
       );
   }
   result.entryAllowed = reasons.length === 0;

@@ -16,6 +16,8 @@ import type { AlertRule, AlertKind } from '@/lib/alerts';
 import { PositionContext } from '@/components/PositionContext';
 import { MarketEvidencePanel } from '@/components/MarketEvidencePanel';
 import type { EntryReading } from '@/lib/entrySetups';
+import type { IntradayInterval } from '@/lib/intraday';
+import type { Timeframe } from '@/lib/data';
 
 interface Props {
   analysis: AssetAnalysis | null;
@@ -26,6 +28,8 @@ interface Props {
   alerts: AlertRule[];
   onAddAlert: (alert: { assetId: string; symbol: string; kind: AlertKind; price?: number }) => void | Promise<void>;
   onRemoveAlert: (id: string) => void;
+  initialTimeframe?: IntradayInterval;
+  onWatchIntraday?: (interval: IntradayInterval) => void;
 }
 
 const fmt = (v: number) => v >= 1000 ? v.toLocaleString('es', { maximumFractionDigits: 0 })
@@ -43,8 +47,10 @@ function IndicatorRow({ label, value, hint }: { label: string; value: string; hi
   );
 }
 
-export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfolio, position, alerts, onAddAlert, onRemoveAlert }: Props) {
+export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfolio, position, alerts, onAddAlert, onRemoveAlert, initialTimeframe = '5m', onWatchIntraday }: Props) {
   const [chartMode, setChartMode] = useState<'line' | 'candles'>('candles');
+  const [chartTimeframe, setChartTimeframe] = useState<Timeframe>(initialTimeframe);
+  const [detectorTimeframe, setDetectorTimeframe] = useState<IntradayInterval>(initialTimeframe);
   const [learnMode, setLearnMode] = useState(false);
   const [entryReading, setEntryReading] = useState<EntryReading | null>(null);
   const riskRef = useRef<RiskCalculatorHandle>(null);
@@ -97,6 +103,9 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6 [scrollbar-gutter:stable]" data-testid="asset-detail-scroll">
             <PositionContext analysis={a} position={position} alerts={alerts} onAddAlert={onAddAlert} onRemoveAlert={onRemoveAlert} />
+            <p className="rounded-lg border border-indigo-900/60 bg-indigo-950/20 p-3 text-xs text-indigo-200">{chartMode === 'line' || !['1m','5m','15m'].includes(chartTimeframe)
+              ? `Gráfico de contexto ${chartMode === 'line' ? 'diario' : chartTimeframe}; el detector de day trading sigue analizando ${detectorTimeframe}.`
+              : `Day trading: gráfico y detector sincronizados en ${detectorTimeframe}.`} El sesgo de la cabecera usa el análisis diario y no confirma una entrada intradía.</p>
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
             <div className="min-w-0 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
               <div className="flex items-center gap-1 px-1 pb-2">
@@ -116,12 +125,17 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                 </button>
               </div>
               {chartMode === 'candles'
-                ? <CandleChart asset={a.asset} adaptiveHeight />
+                ? <CandleChart asset={a.asset} adaptiveHeight timeframe={chartTimeframe} onTimeframeChange={value => {
+                  setChartTimeframe(value);
+                  if (value === '1m' || value === '5m' || value === '15m') setDetectorTimeframe(value);
+                }} />
                 : <PriceChart candles={a.candles} adaptiveHeight />}
             </div>
 
             <div className="min-w-0 space-y-4">
-            <SetupPanel key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} position={position} alerts={alerts} onReading={setEntryReading} onUsePlan={plan => {
+            <SetupPanel key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} position={position} alerts={alerts} onReading={setEntryReading} timeframe={detectorTimeframe} onTimeframeChange={value => {
+              setDetectorTimeframe(value); setChartTimeframe(value); setChartMode('candles');
+            }} onWatch={onWatchIntraday ? () => onWatchIntraday(detectorTimeframe) : undefined} onUsePlan={plan => {
               riskRef.current?.applyPlan(plan);
               document.querySelector('[data-testid="risk-calculator"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }} />
