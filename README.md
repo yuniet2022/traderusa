@@ -28,6 +28,14 @@ El registro requiere un código de acceso creado por un administrador. No hay un
 
 La calculadora de tamaño de posición permite indicar comisión porcentual, comisión fija y spread/deslizamiento adverso por cada lado. Limita las unidades usando tanto el riesgo al stop con esos costes como el capital necesario para la entrada. Muestra el resultado al objetivo con los costes indicados y el acierto de equilibrio bajo un modelo de salidas al objetivo o al stop; este umbral no es una probabilidad de éxito ni un rendimiento validado. Los campos de costes vacíos se tratan como cero con un aviso. No incluye impuestos, financiación ni préstamo de activos, y un salto del stop puede producir una pérdida mayor.
 
+## Entradas y salidas por setups
+
+En el detalle de un activo, el detector analiza velas cerradas de 1, 5 o 15 minutos: ruptura del rango inicial, máximo anterior, retest, retroceso/reanudación y recuperación de soporte. Exige volumen, vigencia y estructura; bloquea señales vencidas, inválidas, datos anteriores y precios que se alejaron de la entrada. Distingue la sesión regular de acciones de cripto 24/7. No pronostica el máximo ni presenta porcentajes de acierto como certeza.
+
+**Usar setup en calculadora de riesgo** aplica entrada, stop y objetivo del mismo plan sin borrar tu capital ni costos. Añade reserva, exposición conjunta con tus compras registradas, efectivo disponible y límites manuales de pérdida/riesgo diario. Los costos y el beneficio/riesgo neto pueden impedir validar el cálculo. La revisión de salida contrasta deterioro del gráfico con el costo de tus lotes y tus umbrales personales. No coloca órdenes ni modifica posiciones.
+
+La [comparación con los proyectos comunitarios y la validación](docs/ENTRADAS_SALIDAS.md) detalla reglas, atribución, reproducción histórica y limitaciones. El motor nuevo es independiente del laboratorio simulado descrito a continuación.
+
 ## Planes, pruebas y simulación
 
 La pestaña **Planes y simulación** cubre acciones y criptomonedas, cada una en intradía (cinco minutos) y varios días (velas diarias). Su motor largo `long-ema20-50-atr14-v1` es independiente del escáner diario: combina EMA20/50, recuperación tras retroceso o ruptura de diez velas y ATR14. Las reglas están visibles junto al gráfico; no se ha demostrado que generen beneficios.

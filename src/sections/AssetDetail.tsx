@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { AssetAnalysis } from '@/types';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SignalBadge, ScoreBar } from '@/components/SignalBadge';
 import { PriceChart } from '@/components/PriceChart';
 import { CandleChart } from '@/components/CandleChart';
 import { LearnPanel } from '@/components/LearnPanel';
-import { DayTypePanel } from '@/components/DayTypePanel';
 import { SetupPanel } from '@/components/SetupPanel';
-import { RiskCalculator } from '@/components/RiskCalculator';
+import { RiskCalculator, type RiskCalculatorHandle } from '@/components/RiskCalculator';
 import { PriceDataStatus } from '@/components/PriceDataStatus';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Briefcase, GraduationCap } from 'lucide-react';
@@ -16,6 +15,7 @@ import type { Position } from '@/lib/portfolio';
 import type { AlertRule, AlertKind } from '@/lib/alerts';
 import { PositionContext } from '@/components/PositionContext';
 import { MarketEvidencePanel } from '@/components/MarketEvidencePanel';
+import type { EntryReading } from '@/lib/entrySetups';
 
 interface Props {
   analysis: AssetAnalysis | null;
@@ -46,6 +46,8 @@ function IndicatorRow({ label, value, hint }: { label: string; value: string; hi
 export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfolio, position, alerts, onAddAlert, onRemoveAlert }: Props) {
   const [chartMode, setChartMode] = useState<'line' | 'candles'>('candles');
   const [learnMode, setLearnMode] = useState(false);
+  const [entryReading, setEntryReading] = useState<EntryReading | null>(null);
+  const riskRef = useRef<RiskCalculatorHandle>(null);
   return (
     <Dialog open={!!a} onOpenChange={open => !open && onClose()}>
       <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1440px] flex-col gap-0 overflow-hidden border-zinc-800 bg-zinc-950 p-0 sm:h-[94dvh] sm:w-[calc(100%-3rem)] sm:max-w-[1440px]">
@@ -119,8 +121,10 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             </div>
 
             <div className="min-w-0 space-y-4">
-            <DayTypePanel asset={a.asset} />
-            <SetupPanel asset={a.asset} />
+            <SetupPanel key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} position={position} alerts={alerts} onReading={setEntryReading} onUsePlan={plan => {
+              riskRef.current?.applyPlan(plan);
+              document.querySelector('[data-testid="risk-calculator"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }} />
             </div>
             </div>
 
@@ -142,48 +146,19 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
 
             {learnMode && <LearnPanel analysis={a} />}
 
-            {a.timing.block && (
+            {(a.timing.block || a.extension > 0 || (a.composite > 0 && a.timing.factor < 0.8)) && (
               <div className="rounded-lg border border-amber-800/60 bg-amber-950/30 p-3 flex gap-2.5">
                 <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-200/90 leading-relaxed">
-                  <strong className="text-amber-300">COMPRA VETADA — precio extendido.</strong>{' '}
+                  <strong className="text-amber-300">Precaución por extensión en el gráfico diario.</strong>{' '}
                   {a.timing.note}.
-                  {' '}La tendencia es alcista pero entrar aquí es comprar caro.
-                  Espera un pullback hacia la SMA20
-                  {a.indicators.sma20 > 0 && ` (~$${fmt(a.indicators.sma20)})`} o una consolidación de varios días.
-                </div>
-              </div>
-            )}
-
-            {!a.timing.block && a.composite > 0 && a.timing.factor < 0.8 && (
-              <div className="rounded-lg border border-amber-800/60 bg-amber-950/30 p-3 flex gap-2.5">
-                <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-200/90 leading-relaxed">
-                  <strong className="text-amber-300">La tendencia es buena pero el timing no.</strong>{' '}
-                  {a.timing.note}.
-                  {' '}Mejor esperar un pullback hacia la SMA20
-                  {a.indicators.sma20 > 0 && ` (~$${fmt(a.indicators.sma20)})`} que comprar en la zona alta.
-                </div>
-              </div>
-            )}
-
-            {a.extension > 0 && (
-              <div className="rounded-lg border border-amber-800/60 bg-amber-950/30 p-3 flex gap-2.5">
-                <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-200/90 leading-relaxed">
-                  <strong className="text-amber-300">Precio extendido — compra vetada.</strong>{' '}
-                  RSI {a.indicators.rsi14.toFixed(0)} con el precio fuera de las bandas de Bollinger
-                  {a.indicators.sma20 > 0 && a.indicators.atr14 > 0 &&
-                    `, a ${((a.price - a.indicators.sma20) / a.indicators.atr14).toFixed(1)}×ATR de su SMA20`}.
-                  {' '}El filtro heurístico de extensión bloquea
-                  la señal de compra. La jugada correcta es esperar un pullback hacia la SMA20
-                  {a.indicators.sma20 > 0 && ` (~$${fmt(a.indicators.sma20)})`} o una consolidación de varios días.
+                  {' '}Esta lectura diaria no confirma una entrada intradía. Contrasta el setup cerrado, su zona válida y su beneficio/riesgo después de costos.
                 </div>
               </div>
             )}
 
             {/* Plan de trading: entrada / salida */}
-            <div className="grid items-start gap-4 lg:grid-cols-2">
+            <div className="space-y-4">
             <div className={cn(
               'rounded-lg border p-3',
               a.levels.bias === 'LARGO' ? 'border-emerald-900/60 bg-emerald-950/20'
@@ -210,7 +185,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               <p className="mt-2 text-[11px] text-zinc-300 leading-relaxed">Niveles hipotéticos calculados desde el mercado; no usan tu costo de compra ni sustituyen tus umbrales. El objetivo de un escenario corto queda por debajo de la entrada y no representa una toma de ganancias de tus acciones compradas.</p>
             </div>
 
-            <RiskCalculator key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} />
+            <RiskCalculator key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} reading={entryReading} controllerRef={riskRef} position={position} />
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">

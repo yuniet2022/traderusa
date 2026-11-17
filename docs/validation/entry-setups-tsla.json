@@ -1,0 +1,106 @@
+{
+  "inputSha256": "b326efd64aa807e93325cff52770976e0820610a9cb9442f17dcfc5cffc9ef9f",
+  "rule": "entry-setups-v1",
+  "symbol": "TSLA",
+  "completedSessions": 59,
+  "skippedSessions": 1,
+  "firstSession": "2026-07-27",
+  "lastSession": "2026-10-16",
+  "assumptions": {
+    "initialCapital": 10000,
+    "interval": "5m",
+    "costs": {
+      "feePercent": 0.05,
+      "slippagePercent": 0.05,
+      "fixedFee": 0.5
+    },
+    "signal": "closed bars only",
+    "entry": "next open or worse signal price",
+    "target": "2R gross",
+    "minNetRewardRisk": 1.5,
+    "maxPositions": 1,
+    "maxEntriesPerSession": 3,
+    "maxRiskPerSession": 300
+  },
+  "tradeCount": 8,
+  "net": 30.66978647427095,
+  "returnPercent": 0.306697864742711,
+  "wins": 5,
+  "losses": 3,
+  "profitFactor": 1.2598505139301808,
+  "maxDrawdownAtClosesPercent": 0.8647979245824297,
+  "trades": [
+    {
+      "day": "2026-08-17",
+      "pattern": "pullback",
+      "entry": 342.86134744262694,
+      "exit": 337.8759525284469,
+      "quantity": 7,
+      "net": -38.2803449491592,
+      "reason": "stop"
+    },
+    {
+      "day": "2026-08-21",
+      "pattern": "orb",
+      "entry": 356.83833366394043,
+      "exit": 362.8634909210205,
+      "quantity": 6,
+      "net": 32.99183806872561,
+      "reason": "session_close"
+    },
+    {
+      "day": "2026-08-27",
+      "pattern": "pullback",
+      "entry": 350.88033906555177,
+      "exit": 355.072375,
+      "quantity": 7,
+      "net": 25.873417041908365,
+      "reason": "session_close"
+    },
+    {
+      "day": "2026-08-31",
+      "pattern": "previous_high",
+      "entry": 359.5997234344482,
+      "exit": 368.1858101196289,
+      "quantity": 6,
+      "net": 48.33316351042199,
+      "reason": "session_close"
+    },
+    {
+      "day": "2026-09-08",
+      "pattern": "orb",
+      "entry": 364.1370861968994,
+      "exit": 367.7460276794434,
+      "quantity": 6,
+      "net": 18.457999553634785,
+      "reason": "session_close"
+    },
+    {
+      "day": "2026-09-16",
+      "pattern": "orb",
+      "entry": 363.62172244262695,
+      "exit": 357.70986818667683,
+      "quantity": 6,
+      "net": -38.63512030758862,
+      "reason": "stop"
+    },
+    {
+      "day": "2026-09-17",
+      "pattern": "orb",
+      "entry": 373.14146406555176,
+      "exit": 366.82592908541886,
+      "quantity": 6,
+      "net": -41.11311206025029,
+      "reason": "stop"
+    },
+    {
+      "day": "2026-10-05",
+      "pattern": "pullback",
+      "entry": 374.3170698852539,
+      "exit": 378.7005696411133,
+      "quantity": 6,
+      "net": 23.041945616577408,
+      "reason": "session_close"
+    }
+  ]
+}

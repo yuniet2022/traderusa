@@ -1,0 +1,92 @@
+# Entradas, salidas y riesgo: comparación y validación
+
+## Qué se investigó
+
+Se revisaron dos proyectos comunitarios de Jake Schincariol, publicados con licencia MIT. Son herramientas de la comunidad para Claude, no funciones oficiales de Claude ni fuentes nuevas de cotizaciones:
+
+- [day-trader-skill, revisión 3d0f4ef](https://github.com/Jakeschincariol/day-trader-skill/tree/3d0f4ef6986f4984b7c6bd46f7ff4f87744c3abd): en particular [entrada](https://github.com/Jakeschincariol/day-trader-skill/blob/3d0f4ef6986f4984b7c6bd46f7ff4f87744c3abd/trader-entry/SKILL.md), [salida](https://github.com/Jakeschincariol/day-trader-skill/blob/3d0f4ef6986f4984b7c6bd46f7ff4f87744c3abd/trader-exit/SKILL.md), [riesgo](https://github.com/Jakeschincariol/day-trader-skill/blob/3d0f4ef6986f4984b7c6bd46f7ff4f87744c3abd/trader-risk/SKILL.md), presupuesto y simulación.
+- [trader-skill, revisión 5189e79](https://github.com/Jakeschincariol/trader-skill/tree/5189e79b9a480755a3733ac9713f5353981dbe18): portafolio, lotes, presupuesto y límites.
+
+Sus suites sin red pasaron 315 y 175 pruebas, respectivamente. Eso comprueba reglas de software sobre sus datos de prueba; no acredita ganancias ni acceso a proveedores desde Railway.
+
+TraderUSA incorpora una implementación propia en TypeScript del flujo cierre → plan → tamaño → revisión. No instala estos paquetes, añade Python, noticias, resultados empresariales ni conexión a un intermediario. La atribución está en [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+
+## Comparación con la aplicación anterior
+
+| Aspecto | Antes | Ahora |
+| --- | --- | --- |
+| Entradas | Conteo de condiciones y referencia del rango desde las primeras barras disponibles | Cinco patrones explícitos con disparador, vigencia, invalidación y motivo de espera/bloqueo |
+| Rango inicial | Podía usar un rango incompleto | Exige las barras exactas de los primeros 30 minutos; no sustituye barras ausentes |
+| Confirmación | La lectura no separaba completamente vela abierta y disparador cerrado | Solo cierres para confirmar; una vela abierta puede bloquear por precio o invalidación, nunca confirmar |
+| Participación | Confluencia indicativa | Volumen de la vela ≥1.2× el promedio de las 20 anteriores, junto con estructura y cierre |
+| Vigencia | Un patrón podía seguir pareciendo utilizable tras la ruptura | Caduca a los dos intervalos; controla actualización, huecos, sesión y alejamiento del precio |
+| Niveles | Calculadora manual separada de los setups | Aplicación explícita del mismo plan: entrada, stop estructural y objetivo; conserva capital y costos |
+| Tamaño | Riesgo al stop, capital y costos | Además reserva, exposición incluyendo la posición existente, efectivo, pérdida máxima, riesgo diario restante y beneficio/riesgo neto mínimo |
+| Salidas propias | Resultado por lotes y umbrales personales | Añade deterioro tras subida con momentum, rechazo/pérdida de estructura y volumen; distingue ganancia y pérdida según tus compras |
+| Horarios | Lectura intradía parcialmente provisional | Sesión regular estadounidense con festivos/cierres anticipados; cripto sigue abierta 24/7 con referencia diaria UTC |
+
+Se mantiene el escáner diario, los escenarios históricos y el diario simulado. El detector sustituye el antiguo panel de confluencia y el panel provisional de tipo de día. Una puntuación del escáner describe sesgo; no es una orden de compra o venta de tus posiciones.
+
+## Reglas y uso
+
+Abre un activo → **Entradas y salidas por setups**. Elige velas de 1, 5 o 15 minutos (5 por defecto). El intervalo del detector es independiente del gráfico y se muestra junto al detector.
+
+Los patrones son ruptura del rango inicial, ruptura del máximo de la sesión diaria anterior cerrada, ruptura y retest posterior, retroceso/reanudación sobre EMA20 y barrida/recuperación de soporte. Usan ATR, EMA20/50 y evolución de MACD cuando hay suficientes barras. Antes de tener MACD se usa mejora del cierre. No son cinco votos independientes ni probabilidades de acierto.
+
+- Consulta de historial de hasta 30 segundos de antigüedad; se bloquea ante actualización fallida, historial anterior, ausencia de fechas verificables, huecos o barras recientes fuera de alineación. La última vela cerrada de la sesión debe tener como máximo dos intervalos más 30 segundos de antigüedad.
+- Las fechas del proveedor, cuando existen, se contrastan con el cierre; al terminar una vela se espera a que la fuente la haya confirmado. La hora de consulta y la del precio se muestran por separado. Si el proveedor no informa esta última, permanece desconocida; los tiempos de las velas no garantizan una cotización sin retraso.
+- Acciones: sesión regular de Nueva York, sin nuevas entradas los primeros 15 minutos ni los últimos 30. El rango inicial necesita 30 minutos completos. Se bloquean nuevas entradas tras varias rupturas fallidas o rupturas en ambas direcciones. Estos bloqueos por horario/estructura no impiden revisar salidas con datos actuales.
+- Cripto: referencia UTC de 00:00 a 00:30 para el rango, sin cierre diario de negociación ni filtro de apertura de acciones.
+- El calendario de acciones cubre 2025–2030, horario estacional y festivos regulares, además del cierre excepcional del 9 de enero de 2025. Fuera de esos años bloquea entradas. No consulta suspensiones intradía ni cierres extraordinarios futuros de la bolsa. Referencia: [NYSE Hours & Calendars](https://www.nyse.com/markets/hours-calendars).
+- Stop basado en estructura y ATR; riesgo mínimo de 0.05% del precio. Objetivos a 2R y 3R **brutos**, donde R es entrada menos stop. Son referencias, no máximos pronosticados.
+- La zona admite como máximo el menor de 0.5 ATR o 0.25R sobre el cierre de confirmación. Perder el nivel de invalidación después del disparador invalida el plan aunque el precio rebote. No se alarga su vencimiento ni se mueven sus objetivos para mantenerlo válido.
+
+**Usar setup en calculadora de riesgo** traslada el primer objetivo y el stop a la calculadora. Esta usa la mayor entrada entre la referencia aplicada y el precio intradía disponible, recalcula el tamaño y conserva el capital/costos introducidos. Cambiar activo, intervalo, validez del setup o precio puede impedir validar el plan. Editar entrada/stop/objetivo convierte el cálculo en manual.
+
+Los valores iniciales de reserva (10%), exposición máxima (25%) y beneficio/riesgo neto mínimo (1.5) son editables; no se han optimizado ni constituyen una recomendación. El efectivo disponible y los límites monetarios opcionales son manuales. Un campo opcional vacío no se comprueba: la app no lee saldo ni pérdidas de Robinhood. Los costos requieren un valor explícito para validar el cálculo, incluso cero. Un límite diario restante de cero impide añadir unidades.
+
+La revisión de salida usa los lotes de la posición: subida previa de al menos un ATR, MACD debilitándose, vela bajista con rechazo o pérdida del mínimo anterior y volumen ≥1.2× su base. No asegura detectar un techo. Una posición en pérdida también puede requerir una salida por riesgo. Los umbrales personales se mantienen separados del escenario de mercado y no se modifican automáticamente. La app no crea órdenes, no ejecuta stops y no cambia el portafolio al aplicar un setup. El diario simulado conserva su motor y registro independientes.
+
+## Por qué no se incorporaron las probabilidades de «Time Machine»
+
+El proyecto externo remuestrea barras de cinco minutos por hora del día para construir 10.000 trayectorias. Son escenarios condicionados a una muestra reciente, no probabilidades predictivas calibradas. Esa simulación no incluye nuestros costos de ejecución y limita a −1R la pérdida en el stop incluso si hay un salto de precio. Su propia documentación reconoce que una ejecución real puede ser peor.
+
+No se muestran esos porcentajes como una ventaja. Para comprobar el motor nuevo se añadió una reproducción cronológica sin red que considera costos y saltos, además de las pruebas controladas. No se ajustaron parámetros buscando mejorar el resultado del archivo.
+
+## Reproducción histórica de comprobación
+
+Entrada: archivo público `tests/fixtures/trader-timemachine/TSLA-60d5m.json.gz` de la revisión indicada de `day-trader-skill`. SHA-256 del archivo comprimido:
+
+```text
+b326efd64aa807e93325cff52770976e0820610a9cb9442f17dcfc5cffc9ef9f
+```
+
+El archivo se usa tal como viene del proyecto comunitario; sus precios no se verificaron contra una segunda fuente. No se incluye una copia de la serie en este repositorio.
+
+```sh
+curl --fail --location https://raw.githubusercontent.com/Jakeschincariol/day-trader-skill/3d0f4ef6986f4984b7c6bd46f7ff4f87744c3abd/tests/fixtures/trader-timemachine/TSLA-60d5m.json.gz --output /tmp/TSLA-60d5m.json.gz
+./node_modules/.bin/esbuild scripts/replay-setups.ts --bundle --platform=node --format=esm --outfile=/tmp/replay-setups.mjs
+node /tmp/replay-setups.mjs /tmp/TSLA-60d5m.json.gz
+```
+
+Supuestos: 10.000 USD iniciales, velas de cinco minutos, una posición abierta, tres entradas como máximo por sesión, 1% de riesgo por operación, 300 USD de presupuesto de riesgo diario, reserva de 10%, exposición máxima de 25%, mínimo 1.5 de beneficio/riesgo neto. Comisión de 0.05%, deslizamiento adverso de 0.05% y 0.50 USD fijos **por cada lado**. La señal solo ve barras previas; entra en la apertura siguiente o al precio original si es peor. Mantiene stop y objetivo 2R originales, cuenta primero el stop si una vela toca ambos y usa la apertura cuando salta el stop. Liquida cinco minutos antes del cierre de acciones. El presupuesto diario se consume conservadoramente por el riesgo previsto, sin reponerlo tras cerrar.
+
+| Resultado en este archivo | Valor |
+| --- | ---: |
+| Sesiones completas | 59, del 27/07/2026 al 16/10/2026 |
+| Sesiones incompletas excluidas | 1 |
+| Operaciones | 8 |
+| Positivas / negativas netas | 5 / 3 |
+| Resultado neto del modelo | +30.67 USD (+0.31%) |
+| Factor de beneficio | 1.26 |
+| Caída máxima del capital al cierre de barras | 0.86% |
+
+El [resultado reproducible](validation/entry-setups-tsla.json) incluye supuestos y operaciones. **Ocho operaciones de un solo activo no prueban rentabilidad ni superioridad frente al motor anterior.** No es una evaluación fuera de muestra reservada ni un estudio de varios regímenes. Supone entrega puntual de datos y no simula colas de órdenes, liquidez, suspensiones, impuestos, dividendos ni todas las fluctuaciones dentro de cada vela. La caída máxima puede ser mayor intravela. Cripto y los otros intervalos tienen comprobaciones de reglas con datos controlados, no una evaluación histórica equivalente.
+
+## Comprobaciones de software
+
+Las pruebas cubren cierre frente a vela en formación, rango incompleto, los cinco patrones, fuente atrasada/fallida, huecos, invalidación con rebote, caducidad, persecución de precio, sesión/festivos/horario estacional, costos y límites, salto del stop, ambigüedad OHLC, y salidas respecto al costo propio en ganancia o pérdida.
+
+El recorrido en Chromium, con respuestas y reloj controlados, confirmó aplicar un plan sin borrar capital/costos, bloquear un precio alejado o un fallo de fuente, caducar el plan, impedir tamaño con riesgo diario cero y no escribir órdenes ni posiciones. También se comprobó que el diálogo no desborda a 1366, 440 y 320 píxeles. Son comprobaciones de interfaz; no certifican acceso en vivo desde Railway ni comportamiento de Safari físico.
+
+La limitación práctica principal sigue siendo recibir OHLC recientes desde el alojamiento. Este cambio muestra y bloquea esa ausencia; no convierte una fuente gratuita limitada en un feed de tiempo real. Para evaluar una ventaja harían falta más datos autorizados, varios activos/períodos, validación cronológica reservada y seguimiento prospectivo de señales, costos y ejecuciones.

@@ -6,6 +6,20 @@ const input: PositionSizeInput = {
 };
 
 describe('position sizing', () => {
+  it('applies the strictest risk and cash/exposure limits after fees', () => {
+    const result=calculatePositionSize({...input, cashReservePercent:20, maxPositionPercent:10, maxLossUsd:50, remainingRiskUsd:30, existingPositionValue:500, cashAvailableUsd:2500, fixedFee:1});
+    expect(result.estimatedLoss).toBeLessThanOrEqual(30);expect(result.capitalUsed).toBeLessThanOrEqual(500);expect(result.quantity).toBe(4);
+    expect(result.passesLimits).toBe(true);
+  });
+  it('does not spend a required cash reserve or increase a position already at its cap', () => {
+    expect(calculatePositionSize({...input,cashReservePercent:20,cashAvailableUsd:1000}).quantity).toBe(0);
+    expect(calculatePositionSize({...input,maxPositionPercent:25,existingPositionValue:2500}).quantity).toBe(0);
+    expect(calculatePositionSize({...input,remainingRiskUsd:0}).quantity).toBe(0);
+  });
+  it('blocks a grossly attractive trade whose net reward/risk fails the selected minimum', () => {
+    const result=calculatePositionSize({...input,minRewardRisk:2,feePercent:0.1});
+    expect(result.quantity).toBeGreaterThan(0);expect(result.rewardRisk).toBeLessThan(2);expect(result.passesLimits).toBe(false);
+  });
   it('sizes a long trade to its risk budget', () => {
     expect(calculatePositionSize(input)).toMatchObject({ quantity: 20, positionValue: 2000, estimatedLoss: 100, estimatedGain: 200, rewardRisk: 2, riskBudget: 100, totalTargetCosts: 0, capitalUsed: 2000 });
   });

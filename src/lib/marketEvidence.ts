@@ -1,6 +1,6 @@
 import type { Candle } from '@/types';
 import { atr, ema, macd, rsi } from './indicators';
-import { nyMinutesSinceOpen } from './dayType';
+import { marketSession } from './marketSession';
 
 export type EvidencePhase = 'early' | 'continuation' | 'exhaustion' | 'weakness' | 'mixed';
 export interface ModelEvidence { name: string; direction: 'up' | 'down' | 'mixed'; detail: string }
@@ -25,7 +25,7 @@ export function candleClosedAt(candle: Candle, intervalSeconds: number, assetCla
   if (intervalSeconds === 86400 && assetClass === 'stock') {
     // Stooq dates are UTC midnight; Yahoo bars start at the exchange opening time.
     const base = candle.time + (candle.time % 86400 === 0 ? 12 * 3600 : 0);
-    return base * 1000 + (390 - nyMinutesSinceOpen(base)) * 60_000;
+    return marketSession('stock', base * 1000).close;
   }
   return (candle.time + intervalSeconds) * 1000;
 }
