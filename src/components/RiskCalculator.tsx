@@ -1,4 +1,4 @@
-import { useId, useImperativeHandle, useState, type Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useState, type Ref } from 'react';
 import type { AssetAnalysis } from '@/types';
 import { calculatePositionSize } from '@/lib/risk';
 import { Calculator } from 'lucide-react';
@@ -6,11 +6,12 @@ import { assessEntryPlan, type EntryPlan, type EntryReading } from '@/lib/entryS
 import { useMarketClock } from '@/hooks/useMarketClock';
 import type { Position } from '@/lib/portfolio';
 import { positionMetrics } from '@/lib/positionContext';
+import type { PlanRiskEvaluation } from '@/lib/tradeDecision';
 
 const dollars = (value: number) => value.toLocaleString('es', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
 export interface RiskCalculatorHandle { applyPlan: (plan: EntryPlan) => void }
-export function RiskCalculator({ analysis, reading, controllerRef, position }: { analysis: AssetAnalysis; reading?: EntryReading | null; controllerRef?: Ref<RiskCalculatorHandle>; position?: Position }) {
+export function RiskCalculator({ analysis, reading, controllerRef, position, onValidation }: { analysis: AssetAnalysis; reading?: EntryReading | null; controllerRef?: Ref<RiskCalculatorHandle>; position?: Position; onValidation?: (evaluation: PlanRiskEvaluation) => void }) {
   const id = useId();
   const [capital, setCapital] = useState('');
   const [risk, setRisk] = useState('1');
@@ -53,6 +54,18 @@ export function RiskCalculator({ analysis, reading, controllerRef, position }: {
       error = cause instanceof Error ? cause.message : 'No se pudo calcular la posición.';
     }
   }
+
+  const costsComplete = fee !== '' && fixedFee !== '' && slippage !== '';
+  const validated = !!appliedPlan && !!result?.passesLimits && !positionUnknown && setupCheck?.status === 'ready' && costsComplete;
+  const validationReason = !appliedPlan ? 'Aplica el setup para comprobar el mismo plan.' : !capital ? 'Introduce tu capital y riesgo para calcular el tamaño.'
+    : error || (setupCheck?.status !== 'ready' ? setupCheck?.reasons[0] : '')
+      || (!costsComplete ? 'Completa los costos, incluido cero cuando corresponda.' : '')
+      || (positionUnknown ? 'Completa tus compras actuales para comprobar la exposición.' : '')
+      || result?.blockedReasons[0] || 'El cálculo cumple los límites indicados.';
+  const planId = appliedPlan?.id ?? null, quantity = result?.quantity ?? 0;
+  useEffect(() => {
+    onValidation?.({planId, valid:validated, quantity, reason:validationReason});
+  }, [onValidation, planId, validated, quantity, validationReason]);
 
   return (
     <section className="rounded-xl border border-indigo-900/60 bg-indigo-950/15 p-4 space-y-4" aria-labelledby={`${id}-title`} data-testid="risk-calculator">

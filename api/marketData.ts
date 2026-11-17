@@ -8,7 +8,7 @@ import { networkErrorCode } from './networkError';
 
 export class MarketUnavailable extends Error {}
 type Entry = { value: unknown; at: number; ttl: number };
-type Chart = { chart?: { result?: { timestamp?: number[]; meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number; regularMarketTime?: number; instrumentType?: string; longName?: string; shortName?: string }; indicators?: { quote?: { open?: (number | null)[]; high?: (number | null)[]; low?: (number | null)[]; close?: (number | null)[]; volume?: (number | null)[] }[] } }[] } };
+type Chart = { chart?: { result?: { timestamp?: number[]; meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number; regularMarketTime?: number; dataGranularity?: string; instrumentType?: string; longName?: string; shortName?: string }; indicators?: { quote?: { open?: (number | null)[]; high?: (number | null)[]; low?: (number | null)[]; close?: (number | null)[]; volume?: (number | null)[] }[] } }[] } };
 const TF = {
   scan: { binance: '1d', kraken: 1440, range: '2y', yahoo: '1d' },
   '1m': { binance: '1m', kraken: 1, range: '1d', yahoo: '1m' },
@@ -19,7 +19,7 @@ const TF = {
   '1wk': { binance: '1w', kraken: 10080, range: '5y', yahoo: '1wk' },
 } as const;
 
-function cleanCandles(rows: Candle[], minimum: number): Candle[] {
+function sortedValidCandles(rows: Candle[]): Candle[] {
   const sorted = new Map<number, Candle>();
   for (const c of rows) {
     if (![c.time, c.open, c.high, c.low, c.close, c.volume].every(Number.isFinite)
@@ -27,7 +27,10 @@ function cleanCandles(rows: Candle[], minimum: number): Candle[] {
       || c.high < Math.max(c.open, c.close, c.low) || c.low > Math.min(c.open, c.close, c.high)) continue;
     sorted.set(c.time, c);
   }
-  const result = [...sorted.values()].sort((a, b) => a.time - b.time).slice(-420);
+  return [...sorted.values()].sort((a, b) => a.time - b.time);
+}
+function cleanCandles(rows: Candle[], minimum: number): Candle[] {
+  const result = sortedValidCandles(rows).slice(-420);
   if (result.length < minimum) throw new MarketUnavailable('Insufficient OHLC history');
   return result;
 }
@@ -45,7 +48,7 @@ function yahooCandles(data: Chart): Candle[] {
 
 function weekly(daily: Candle[]): Candle[] {
   const weeks = new Map<number, Candle>();
-  for (const candle of daily) {
+  for (const candle of sortedValidCandles(daily)) {
     const d = new Date(candle.time * 1000);
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
     d.setUTCHours(0, 0, 0, 0);
@@ -246,10 +249,14 @@ export function createMarketService(options: { fetch?: typeof fetch; now?: () =>
       }
       let priceAsOf: number | undefined;
       sources.push({ name: 'Yahoo Finance', load: async () => {
-        const data = await yahoo(id, assetClass, cfg.range, cfg.yahoo, signal);
+        // Build weekly bars ourselves from daily OHLC, including the partial
+        // current week, instead of accepting an ambiguous native weekly tail.
+        const data = await yahoo(id, assetClass, cfg.range, tf === '1wk' ? '1d' : cfg.yahoo, signal);
+        if (tf === '1wk' && data.chart?.result?.[0]?.meta?.dataGranularity && data.chart.result[0].meta.dataGranularity !== '1d') throw new MarketUnavailable('Unexpected daily OHLC interval');
         const timestamp = data.chart?.result?.[0]?.meta?.regularMarketTime;
         priceAsOf = timestamp && Number.isFinite(timestamp) ? timestamp * 1000 : undefined;
-        return yahooCandles(data);
+        const rows = yahooCandles(data);
+        return tf === '1wk' ? weekly(rows) : rows;
       } });
       // A daily chart needs today's partial candle when available. Stooq's
       // daily closes remain a fallback and the scanner's original first source.

@@ -7,6 +7,8 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { useCandleHistory } from '@/hooks/useCandleHistory';
 import { useChartWidth } from '@/hooks/useChartWidth';
 import { cn } from '@/lib/utils';
+import { useMarketClock } from '@/hooks/useMarketClock';
+import { sessionPresentation } from '@/lib/marketSession';
 
 interface Props {
   asset: Asset;
@@ -14,6 +16,7 @@ interface Props {
   initialTimeframe?: Timeframe;
   timeframe?: Timeframe;
   onTimeframeChange?: (value: Timeframe) => void;
+  onShowIntraday?: () => void;
   adaptiveHeight?: boolean;
 }
 
@@ -24,15 +27,17 @@ const MAX_BARS = 140;
 
 function fmtTime(t: number, tf: Timeframe): string {
   const d = new Date(t * 1000);
-  if (tf === '1d' || tf === '1wk') return d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+  if (tf === '1d' || tf === '1wk') return d.toLocaleDateString('es', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' });
   return d.toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function CandleChart({ asset, height = 300, initialTimeframe = '1d', timeframe, onTimeframeChange, adaptiveHeight = false }: Props) {
+export function CandleChart({ asset, height = 300, initialTimeframe = '1d', timeframe, onTimeframeChange, onShowIntraday, adaptiveHeight = false }: Props) {
   const [localTimeframe, setLocalTimeframe] = useState<Timeframe>(initialTimeframe);
   const tf = timeframe ?? localTimeframe;
   const setTf = (value: Timeframe) => { setLocalTimeframe(value); onTimeframeChange?.(value); };
-  const { history, loading, error, refresh } = useCandleHistory(asset, tf);
+  const now = useMarketClock();
+  const sessionInfo = sessionPresentation(asset.assetClass, now);
+  const { history, loading, error, refresh } = useCandleHistory(asset, tf, !sessionInfo.paused);
   const candles = history?.candles ?? null;
   const { containerRef, width } = useChartWidth();
 
@@ -117,11 +122,13 @@ export function CandleChart({ asset, height = 300, initialTimeframe = '1d', time
       </div>
 
       <div className="px-1 pb-2 space-y-1 text-[10px] text-zinc-400" role="status" aria-live="polite">
-        <p>Consulta automática cada 10 s con la pestaña visible.</p>
+        <p className="text-xs font-medium text-zinc-200">{tf === '1wk' ? 'Gráfico semanal · cada vela representa una semana.' : tf === '1d' ? 'Gráfico diario · cada vela representa un día.' : `Gráfico intradía · velas de ${TIMEFRAMES.find(t => t.id === tf)?.label}.`}</p>
+        {onShowIntraday && !['1m','5m','15m'].includes(tf) && <button onClick={onShowIntraday} className="min-h-9 text-xs text-indigo-300 underline">Volver al gráfico de day trading</button>}
+        <p>{sessionInfo.paused ? `${sessionInfo.title}. Autoconsulta en pausa; puedes actualizar el historial manualmente.` : 'Consulta automática cada 10 s con la pestaña visible.'}</p>
         {history && <>
           <p>{history.source} · {history.fetchedAt ? `Fuente consultada: ${new Date(history.fetchedAt).toLocaleString('es')}` : 'Hora de consulta a la fuente no informada'}{history.cached ? ' · Caché compartida' : ''}</p>
           <p>{history.priceAsOf ? `Hora del precio del proveedor: ${new Date(history.priceAsOf).toLocaleString('es')}` : 'El proveedor no informa la hora de la última operación.'}</p>
-          <p>Última vela: {new Date(history.candles.at(-1)!.time * 1000).toLocaleString('es')} (inicio del intervalo).</p>
+          <p>{tf === '1wk' ? `Última vela semanal: semana del ${fmtTime(history.candles.at(-1)!.time, tf)} (referencia UTC).` : `Última vela: ${new Date(history.candles.at(-1)!.time * 1000).toLocaleString('es')} (inicio del intervalo).`}</p>
           {history.dailyCloseOnly && <p className="text-amber-300">Fuente de cierres diarios; no incluye los movimientos de la sesión en curso.</p>}
           {history.stale && <p className="text-amber-300">La fuente no ha podido actualizarse. Se muestran datos anteriores en caché.</p>}
         </>}

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import type { Position } from '@/lib/portfolio';
 import { positionMetrics } from '@/lib/positionContext';
 import { HorizonContext } from './HorizonContext';
+import { sessionPresentation } from '@/lib/marketSession';
 
 const phases: Record<EvidencePhase, string> = {
   early: 'Impulso incipiente por confirmar', continuation: 'Continuación alcista a vigilar',
@@ -25,10 +26,11 @@ export function MarketEvidencePanel({ analysis, position }: { analysis: AssetAna
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); };
   }, []);
   const interval = timeframe === '1m' ? 60 : timeframe === '5m' ? 300 : 86400;
-  const { history, error, loading } = useCandleHistory(analysis.asset, timeframe);
+  const sessionInfo = sessionPresentation(analysis.asset.assetClass, clock);
+  const { history, error, loading } = useCandleHistory(analysis.asset, timeframe, !sessionInfo.paused);
   const { flow, error: flowError } = useTradeFlow(analysis.asset);
   const evidence = useMemo(() => history ? analyzeMarketEvidence(history.candles, interval, clock, analysis.asset.assetClass) : null, [history, interval, clock, analysis.asset.assetClass]);
-  const historical = !!history?.stale || !!error || (!!evidence && clock - evidence.lastClosedAt > interval * 3000);
+  const historical = sessionInfo.paused || !!history?.stale || !!error || (!!evidence && clock - evidence.lastClosedAt > interval * 3000);
   const flowOld = flow && (flow.stale || flowError || clock - flow.fetchedAt > 30_000 || clock - flow.lastTradeAt > 30_000);
   const time = (timestamp: number) => new Date(timestamp).toLocaleString('es', { dateStyle: 'short', timeStyle: 'medium' });
   const dollars = (value: number) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -43,6 +45,7 @@ export function MarketEvidencePanel({ analysis, position }: { analysis: AssetAna
       </label>
     </div>
     <p className="text-xs text-zinc-400">Se analiza si la subida gana fuerza, continúa o se agota. Se usan velas cerradas; el volumen de una vela abierta aún está incompleto.</p>
+    {sessionInfo.paused && <p className="text-xs text-indigo-200">{sessionInfo.title}. Esta sección muestra contexto histórico; la autoconsulta se reanuda en la sesión regular.</p>}
     <HorizonContext analysis={analysis} clock={clock} />
     {position && <div className="rounded-lg border border-zinc-700 p-3 space-y-1" aria-label="Contexto de salida de tu posición">
       <h4 className="text-sm font-semibold">Salidas: comparar con tus compras</h4>
@@ -69,7 +72,7 @@ export function MarketEvidencePanel({ analysis, position }: { analysis: AssetAna
       <div className="space-y-1">
         <h4 className="text-sm font-semibold">{historical ? 'Lectura histórica: ' : ''}{phases[evidence.phase]}</h4>
         <p className="text-[11px] text-zinc-400">{evidence.closedBars} velas cerradas · Último cierre analizado: {time(evidence.lastClosedAt)} · {history?.source} · {evidence.omittedOpenBars} vela(s) abierta(s) excluida(s).</p>
-        {historical && <p className="text-xs text-amber-300">Datos anteriores o actualización fallida. Esta lectura no confirma una oportunidad actual.</p>}
+        {historical && <p className="text-xs text-amber-300">{sessionInfo.paused ? 'Sesión regular cerrada: esta lectura es contexto histórico y no confirma una oportunidad actual.' : 'Datos anteriores o actualización fallida. Esta lectura no confirma una oportunidad actual.'}</p>}
         <p className="text-xs text-zinc-400">Contexto del análisis diario: {marketSignalLabel(analysis.signal).toLocaleLowerCase('es')}{analysis.historyStale ? ' · historial pendiente de actualizar' : ''}. Puede discrepar del intervalo elegido.</p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">

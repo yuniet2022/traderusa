@@ -15,6 +15,7 @@ import { reviewPositionExit } from "@/lib/exitReview";
 import { fmtPrice } from "@/lib/format";
 import { Button } from "./ui/button";
 import { intradayAction, type IntradayInterval } from "@/lib/intraday";
+import { sessionPresentation } from "@/lib/marketSession";
 
 const labels: Record<EntryStatus, string> = {
   ready: "Confirmado para evaluar",
@@ -50,9 +51,11 @@ export function SetupPanel({
     onTimeframeChange?.(value);
   };
   const now = useMarketClock();
+  const sessionInfo = sessionPresentation(a.asset.assetClass, now);
   const { history, error, loading, refresh } = useCandleHistory(
     a.asset,
-    timeframe
+    timeframe,
+    !sessionInfo.paused
   );
   const seconds = timeframe === "1m" ? 60 : timeframe === "5m" ? 300 : 900;
   const reading = useMemo(
@@ -97,12 +100,25 @@ export function SetupPanel({
       <div
         className={`rounded-lg border p-3 space-y-1 ${action.kind === "buy" ? "border-emerald-700 bg-emerald-950/25" : action.kind === "sell" ? "border-amber-700 bg-amber-950/25" : "border-zinc-700"}`}
       >
-        <p className="text-sm font-semibold">{action.title}</p>
-        <p className="text-xs text-zinc-300">
-          {action.kind === "buy" || action.kind === "sell"
-            ? action.detail
-            : "El detector no ha confirmado una operación. El motivo y la vigencia aparecen debajo."}
+        <p className="text-sm font-semibold">
+          {sessionInfo.paused ? sessionInfo.title : action.title}
         </p>
+        <p className="text-xs text-zinc-300">
+          {sessionInfo.paused
+            ? `${sessionInfo.schedule} El detector está en pausa; el historial no confirma una compra o venta actual.`
+            : action.kind === "buy" || action.kind === "sell"
+              ? action.detail
+              : "El detector no ha confirmado una operación. El motivo y la vigencia aparecen debajo."}
+        </p>
+        {sessionInfo.paused && sessionInfo.nextOpening && (
+          <p className="text-xs text-indigo-200">{sessionInfo.nextOpening}</p>
+        )}
+        {sessionInfo.paused && (
+          <p className="text-[11px] text-zinc-400">
+            Esta app analiza la sesión regular; no evalúa operaciones de
+            premercado ni después del cierre.
+          </p>
+        )}
         {onWatch && (
           <button
             onClick={onWatch}
@@ -114,22 +130,36 @@ export function SetupPanel({
       </div>
       <p
         role="status"
-        className={`text-sm font-semibold ${reading.status === "ready" ? "text-emerald-300" : "text-amber-300"}`}
+        className={`text-sm font-semibold ${sessionInfo.paused ? "text-zinc-300" : reading.status === "ready" ? "text-emerald-300" : "text-amber-300"}`}
       >
-        {loading && !history ? "Cargando velas…" : labels[reading.status]}
+        {sessionInfo.paused
+          ? "Detector intradía en pausa"
+          : loading && !history
+            ? "Cargando velas…"
+            : labels[reading.status]}
       </p>
-      <p className="text-[11px] text-zinc-400">
-        {reading.session.label}. La referencia inicial exige los 30 minutos
-        completos; no se inventa un rango si faltan velas.
-      </p>
-      <ul className="space-y-1 text-xs text-zinc-300">
-        {reading.reasons.slice(0, 3).map(reason => (
-          <li key={reason}>{reason}</li>
-        ))}
-      </ul>
+      {!sessionInfo.paused && (
+        <p className="text-[11px] text-zinc-400">
+          {reading.session.label}. La referencia inicial exige los 30 minutos
+          completos; no se inventa un rango si faltan velas.
+        </p>
+      )}
+      {!sessionInfo.paused && (
+        <ul className="space-y-1 text-xs text-zinc-300">
+          {reading.reasons.slice(0, 3).map(reason => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      )}
+      {sessionInfo.paused && (error || history?.stale) && (
+        <p className="text-xs text-amber-300">
+          No se pudo actualizar el historial. Se conserva el último disponible;
+          la próxima apertura no garantiza que la fuente se recupere.
+        </p>
+      )}
       <p className="text-[11px] text-zinc-400">
         {reading.lastClosedAt
-          ? `Último cierre: ${when(reading.lastClosedAt)}`
+          ? `Último cierre${sessionInfo.paused ? " disponible (histórico)" : ""}: ${when(reading.lastClosedAt)}`
           : "Sin cierre reciente"}{" "}
         · {reading.ignoredOpenBars} vela(s) abierta(s) excluida(s) ·{" "}
         {reading.source}.
@@ -145,14 +175,21 @@ export function SetupPanel({
       <div className="grid grid-cols-3 gap-2 text-[11px]">
         {[
           [
-            "Rango inicial máx.",
+            sessionInfo.paused
+              ? "Rango inicial histórico máx."
+              : "Rango inicial máx.",
             reading.range?.complete ? reading.range.high : null,
           ],
           [
-            "Rango inicial mín.",
+            sessionInfo.paused
+              ? "Rango inicial histórico mín."
+              : "Rango inicial mín.",
             reading.range?.complete ? reading.range.low : null,
           ],
-          ["VWAP de sesión", reading.vwap],
+          [
+            sessionInfo.paused ? "VWAP histórico" : "VWAP de sesión",
+            reading.vwap,
+          ],
         ].map(([label, value]) => (
           <div key={label} className="min-w-0 rounded bg-zinc-950/50 p-2">
             <p className="text-zinc-400">{label}</p>
@@ -162,7 +199,7 @@ export function SetupPanel({
           </div>
         ))}
       </div>
-      {plan && (
+      {plan && !sessionInfo.paused && (
         <div className="rounded-lg border border-zinc-700 p-2.5 space-y-2">
           <h4 className="text-xs font-semibold">
             {entryPatternNames[plan.pattern]}
@@ -288,9 +325,11 @@ export function SetupPanel({
         Actualizar detector
       </button>
       <p className="text-[11px] text-zinc-400">
-        Consulta cada 10 segundos con la pestaña visible. Reglas heurísticas:
-        describen condiciones observadas, no una probabilidad de ganancias ni el
-        máximo futuro.
+        {sessionInfo.paused
+          ? "Autoconsulta en pausa hasta la apertura regular; puedes consultar el historial manualmente."
+          : "Consulta cada 10 segundos con la pestaña visible."}{" "}
+        Reglas heurísticas: describen condiciones observadas, no una
+        probabilidad de ganancias ni el máximo futuro.
       </p>
     </section>
   );

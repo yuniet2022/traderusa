@@ -18,6 +18,8 @@ import { MarketEvidencePanel } from '@/components/MarketEvidencePanel';
 import type { EntryReading } from '@/lib/entrySetups';
 import type { IntradayInterval } from '@/lib/intraday';
 import type { Timeframe } from '@/lib/data';
+import { TradeDecision } from '@/components/TradeDecision';
+import type { PlanRiskEvaluation } from '@/lib/tradeDecision';
 
 interface Props {
   analysis: AssetAnalysis | null;
@@ -53,7 +55,12 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
   const [detectorTimeframe, setDetectorTimeframe] = useState<IntradayInterval>(initialTimeframe);
   const [learnMode, setLearnMode] = useState(false);
   const [entryReading, setEntryReading] = useState<EntryReading | null>(null);
+  const [riskValidation, setRiskValidation] = useState<PlanRiskEvaluation | null>(null);
   const riskRef = useRef<RiskCalculatorHandle>(null);
+  const preparePlan = (plan: NonNullable<EntryReading['plan']>) => {
+    riskRef.current?.applyPlan(plan);
+    document.querySelector('[data-testid="risk-calculator"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   return (
     <Dialog open={!!a} onOpenChange={open => !open && onClose()}>
       <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1440px] flex-col gap-0 overflow-hidden border-zinc-800 bg-zinc-950 p-0 sm:h-[94dvh] sm:w-[calc(100%-3rem)] sm:max-w-[1440px]">
@@ -64,10 +71,6 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               <DialogTitle className="flex items-center gap-3 flex-wrap">
                 <span className="text-xl">{a.asset.symbol}</span>
                 <span className="text-sm text-zinc-400 font-normal">{a.asset.name}</span>
-                <SignalBadge signal={a.signal} />
-                <span className="text-xs text-zinc-500 font-normal">
-                  Régimen: {a.regime}
-                </span>
               </DialogTitle>
               <DialogDescription className="sr-only">Gráfico, lectura del mercado, plan e indicadores de {a.asset.name}.</DialogDescription>
             </DialogHeader>
@@ -79,8 +82,13 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                   {a.change24h >= 0 ? '+' : ''}{a.change24h.toFixed(2)}% (24h)
                 </span>
               )}
-              <span className="sm:ml-auto"><ScoreBar score={a.composite} /></span>
             </div>
+
+            <TradeDecision compact asset={a.asset} reading={entryReading} risk={riskValidation} position={position} alerts={alerts} intervalSeconds={detectorTimeframe === '1m' ? 60 : detectorTimeframe === '5m' ? 300 : 900} onPrepare={preparePlan} />
+            <details className="mt-2 text-xs text-zinc-400">
+              <summary className="min-h-8 cursor-pointer">Ver contexto diario (tendencia, no señal de compra)</summary>
+              <div className="mt-1 flex flex-wrap items-center gap-3"><SignalBadge signal={a.signal} /><ScoreBar score={a.composite} /><span>Régimen: {a.regime}</span></div>
+            </details>
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <PriceDataStatus analysis={a} />
@@ -102,6 +110,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             </div>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-6 [scrollbar-gutter:stable]" data-testid="asset-detail-scroll">
+            <TradeDecision asset={a.asset} reading={entryReading} risk={riskValidation} position={position} alerts={alerts} intervalSeconds={detectorTimeframe === '1m' ? 60 : detectorTimeframe === '5m' ? 300 : 900} onPrepare={preparePlan} />
             <PositionContext analysis={a} position={position} alerts={alerts} onAddAlert={onAddAlert} onRemoveAlert={onRemoveAlert} />
             <p className="rounded-lg border border-indigo-900/60 bg-indigo-950/20 p-3 text-xs text-indigo-200">{chartMode === 'line' || !['1m','5m','15m'].includes(chartTimeframe)
               ? `Gráfico de contexto ${chartMode === 'line' ? 'diario' : chartTimeframe}; el detector de day trading sigue analizando ${detectorTimeframe}.`
@@ -125,7 +134,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
                 </button>
               </div>
               {chartMode === 'candles'
-                ? <CandleChart asset={a.asset} adaptiveHeight timeframe={chartTimeframe} onTimeframeChange={value => {
+                ? <CandleChart asset={a.asset} adaptiveHeight timeframe={chartTimeframe} onShowIntraday={() => setChartTimeframe(detectorTimeframe)} onTimeframeChange={value => {
                   setChartTimeframe(value);
                   if (value === '1m' || value === '5m' || value === '15m') setDetectorTimeframe(value);
                 }} />
@@ -135,10 +144,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             <div className="min-w-0 space-y-4">
             <SetupPanel key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} position={position} alerts={alerts} onReading={setEntryReading} timeframe={detectorTimeframe} onTimeframeChange={value => {
               setDetectorTimeframe(value); setChartTimeframe(value); setChartMode('candles');
-            }} onWatch={onWatchIntraday ? () => onWatchIntraday(detectorTimeframe) : undefined} onUsePlan={plan => {
-              riskRef.current?.applyPlan(plan);
-              document.querySelector('[data-testid="risk-calculator"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }} />
+            }} onWatch={onWatchIntraday ? () => onWatchIntraday(detectorTimeframe) : undefined} onUsePlan={preparePlan} />
             </div>
             </div>
 
@@ -199,7 +205,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
               <p className="mt-2 text-[11px] text-zinc-300 leading-relaxed">Niveles hipotéticos calculados desde el mercado; no usan tu costo de compra ni sustituyen tus umbrales. El objetivo de un escenario corto queda por debajo de la entrada y no representa una toma de ganancias de tus acciones compradas.</p>
             </div>
 
-            <RiskCalculator key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} reading={entryReading} controllerRef={riskRef} position={position} />
+            <RiskCalculator key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} reading={entryReading} controllerRef={riskRef} position={position} onValidation={setRiskValidation} />
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">

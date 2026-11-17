@@ -120,3 +120,56 @@ export function marketSession(assetClass: AssetClass, now: number) {
       : "NYSE cerrada: fin de semana o festivo",
   };
 }
+
+/** Next supported regular US session, respecting holidays, DST and early closes. */
+export function nextRegularSession(now: number) {
+  const current = marketSession("stock", now);
+  if (!current.known) return null;
+  if (current.tradingDay && now < current.open) return current;
+  const noon = Date.parse(`${current.key}T12:00:00Z`);
+  for (let offset = 1; offset <= 10; offset++) {
+    const next = marketSession("stock", noon + offset * dayMs);
+    if (!next.known) return null;
+    if (next.tradingDay) return next;
+  }
+  return null;
+}
+
+export const nySessionTime = (time: number) =>
+  new Date(time).toLocaleString("es", {
+    timeZone: "America/New_York",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }) + " (Nueva York)";
+
+export function sessionPresentation(assetClass: AssetClass, now: number) {
+  const session = marketSession(assetClass, now);
+  const paused = assetClass === "stock" && !session.openNow;
+  const next = paused ? nextRegularSession(now) : null;
+  return {
+    session,
+    paused,
+    title: !session.known
+      ? "Calendario fuera de cobertura"
+      : session.openNow
+        ? "Sesión regular abierta"
+        : !session.tradingDay
+          ? "Bolsa cerrada por fin de semana o festivo"
+          : now < session.open
+            ? "Antes de la apertura de la sesión regular"
+            : "Sesión regular finalizada",
+    schedule:
+      assetClass === "crypto"
+        ? "Cripto opera 24/7."
+        : session.known
+          ? `Horario regular: 09:30–${session.early ? "13:00" : "16:00"} de Nueva York${session.early ? " (cierre anticipado)" : ""}.`
+          : "No se confirma una entrada fuera de los años cubiertos.",
+    nextOpening: next
+      ? `Próxima apertura regular: ${nySessionTime(next.open)}.`
+      : null,
+  };
+}

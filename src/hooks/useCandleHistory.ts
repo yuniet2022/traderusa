@@ -5,7 +5,7 @@ import { loadTimeframeHistory, type Timeframe } from '@/lib/data';
 const POLL_MS = 10_000;
 type State = { key: string; history: CandleHistory | null; loading: boolean; error: string | null };
 
-export function useCandleHistory(asset: Asset, timeframe: Timeframe) {
+export function useCandleHistory(asset: Asset, timeframe: Timeframe, polling = true) {
   const { id, assetClass } = asset;
   const key = `${assetClass}:${id}:${timeframe}`;
   const [state, setState] = useState<State>({ key, history: null, loading: true, error: null });
@@ -17,7 +17,7 @@ export function useCandleHistory(asset: Asset, timeframe: Timeframe) {
     let busy = false;
     let version = 0;
     let controller: AbortController | null = null;
-    setState({ key, history: null, loading: true, error: null });
+    setState(previous => previous.key === key ? previous : { key, history: null, loading: true, error: null });
 
     function cancel() {
       version++;
@@ -52,7 +52,7 @@ export function useCandleHistory(asset: Asset, timeframe: Timeframe) {
         if (version === request) busy = false;
       }
     }
-    function resume() { if (document.visibilityState !== 'hidden') void load(); }
+    function resume() { if (polling && document.visibilityState !== 'hidden') void load(); }
     function visibility() { if (document.visibilityState === 'hidden') cancel(); else resume(); }
     function offline() {
       cancel();
@@ -76,7 +76,7 @@ export function useCandleHistory(asset: Asset, timeframe: Timeframe) {
       window.removeEventListener('offline', offline);
       if (refreshRef.current === manual) refreshRef.current = () => {};
     };
-  }, [id, assetClass, timeframe, key]);
+  }, [id, assetClass, timeframe, key, polling]);
 
   return { ...(state.key === key ? state : { key, history: null, loading: true, error: null }), refresh };
 }

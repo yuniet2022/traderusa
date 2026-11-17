@@ -187,6 +187,29 @@ describe('server market sources', () => {
     expect(result.dailyCloseOnly).toBe(true);
   });
 
+  it('builds Yahoo weekly candles from daily data without relabeling daily bars as weeks', async () => {
+    const times=Array.from({length:200},(_,i)=>Date.UTC(2026,0,1+i,14,30)/1000);
+    const payload={chart:{result:[{timestamp:times,meta:{dataGranularity:'1d',regularMarketTime:times.at(-1)},indicators:{quote:[{open:times.map((_,i)=>100+i),high:times.map((_,i)=>105+i),low:times.map((_,i)=>95+i),close:times.map((_,i)=>102+i),volume:times.map(()=>2500)}]}}]}};
+    const fetcher=vi.fn<typeof fetch>().mockImplementation(async()=>Response.json(payload));
+    const result=await createMarketService({fetch:fetcher}).history('stock','AAPL','1wk');
+    expect(new URL(String(fetcher.mock.calls[0][0])).searchParams.get('interval')).toBe('1d');
+    expect(result.candles.length).toBeLessThan(35);
+    expect(result.candles.every(c=>new Date(c.time*1000).getUTCDay()===1)).toBe(true);
+    expect(result.candles.reduce((total,c)=>total+c.volume,0)).toBe(200*2500);
+    expect(result.candles.at(-1)?.close).toBe(301);
+    expect(result.candles[0]).toMatchObject({open:100,high:108,low:95,close:105,volume:10000});
+    expect(result.priceAsOf).toBe(times.at(-1)!*1000);
+  });
+
+  it('rejects contradictory Yahoo daily granularity and falls back to actual grouped daily closes', async () => {
+    const daily=Array.from({length:200},(_,i)=>`${new Date(now-(200-i)*86400000).toISOString().slice(0,10)},100,105,95,102,2500`);
+    const payload={chart:{result:[{...yahoo().chart.result[0],meta:{dataGranularity:'5m'}}]}};
+    const fetcher=vi.fn<typeof fetch>().mockImplementation(async input=>String(input).includes('yahoo.com')?Response.json(payload):new Response('Date,Open,High,Low,Close,Volume\n'+daily.join('\n')));
+    const result=await createMarketService({fetch:fetcher}).history('stock','AAPL','1wk');
+    expect(result.source).toBe('Stooq');
+    expect(result.candles.every(c=>new Date(c.time*1000).getUTCDay()===1)).toBe(true);
+  });
+
   it('refreshes daily chart candles after five seconds and preserves the actual observation time', async () => {
     let clock = now;
     const response = yahoo();
