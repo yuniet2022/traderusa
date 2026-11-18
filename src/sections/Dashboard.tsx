@@ -10,6 +10,7 @@ import { Top10 } from '@/sections/Top10';
 import { cn } from '@/lib/utils';
 import { fmtPrice } from '@/lib/format';
 import { PriceDataStatus } from '@/components/PriceDataStatus';
+import { RobinhoodBadge } from '@/components/RobinhoodBadge';
 import { portfolioAnalyses, selectScannerAssets, type ScannerSignal, type ScannerSort } from '@/lib/scanner';
 
 interface Props {
@@ -151,6 +152,7 @@ export function Dashboard({ analyses, positions, loading, quoteCount, updatedAt,
                       <div className="flex items-center gap-2">
                         <button onClick={e => { e.stopPropagation(); onSelect(a); }} aria-label={`Ver análisis de ${a.asset.symbol}`}
                           className="font-semibold rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">{a.asset.symbol}</button>
+                        <RobinhoodBadge asset={a.asset}/>
                         {a.extension === 2 && (
                           <span title="Pico vertical: compra vetada, esperar pullback">
                             <AlertTriangle size={13} className="text-amber-400" />
@@ -223,6 +225,7 @@ function MobileAssetRow({ analysis: a, onSelect, onQuickAlert }: {
       </button>
     </div>
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <RobinhoodBadge asset={a.asset}/>
       <SignalBadge signal={a.signal} />
       <span className="text-xs text-zinc-400">Puntuación <span className={cn('font-mono font-medium', a.composite >= 0 ? 'text-emerald-400' : 'text-red-400')}>{a.composite > 0 ? '+' : ''}{a.composite.toFixed(0)}</span></span>
     </div>

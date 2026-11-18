@@ -58,3 +58,7 @@ Mantén estable `APP_SECRET`: cambiarlo invalida las sesiones. Usa una sola rép
 - **No aparecen activos:** revisa `/api/market/history` en la red del navegador y `[MARKET_SOURCE_ERROR]` en los logs de ejecución. Un `401` de la API local requiere iniciar sesión; un `503` indica que las fuentes no pudieron entregar historial suficiente. El barrido acaba en 45 segundos y permite reintentar; las respuestas `HTTP_429` de proveedores activan una pausa compartida para reducir nuevas consultas.
 
 Referencias oficiales: [configuración en el repositorio](https://docs.railway.com/config-as-code), [pre-deploy](https://docs.railway.com/deployments/pre-deploy-command), [MySQL](https://docs.railway.com/databases/mysql).
+
+## Catálogo ampliado y etiqueta Robinhood
+
+El descubrimiento necesita salida HTTPS a `www.nasdaqtrader.com`, además de los proveedores de mercado existentes. La comprobación positiva de Robinhood consulta `api.robinhood.com` y `nummus.robinhood.com` sin iniciar sesión ni usar credenciales de la cuenta. No necesita migraciones ni variables secretas nuevas. Si el proveedor bloquea las consultas públicas, se muestra cobertura parcial y no se inventa la etiqueta. Comprueba los catorce destinos en Admin → Diagnosticar fuentes y consulta [la cobertura real](../docs/COBERTURA_MERCADO.md).

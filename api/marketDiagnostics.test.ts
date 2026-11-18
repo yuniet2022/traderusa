@@ -21,13 +21,13 @@ describe('safe production network diagnostics', () => {
     });
     const check = createMarketDiagnostics({ fetch: fetcher, now: () => clock });
     const [first, second] = await Promise.all([check(), check()]);
-    expect(first).toEqual(second); expect(fetcher).toHaveBeenCalledTimes(6);
-    expect(new Set(fetcher.mock.calls.map(c => new URL(String(c[0])).hostname))).toEqual(new Set(['query1.finance.yahoo.com','query2.finance.yahoo.com','api.kraken.com','api.exchange.coinbase.com','stooq.com','api.binance.com']));
+    expect(first).toEqual(second); expect(fetcher).toHaveBeenCalledTimes(14);
+    expect(new Set(fetcher.mock.calls.map(c => new URL(String(c[0])).hostname))).toEqual(new Set(['query1.finance.yahoo.com','query2.finance.yahoo.com','api.kraken.com','api.exchange.coinbase.com','stooq.com','api.binance.com','www.nasdaqtrader.com','api.robinhood.com','nummus.robinhood.com']));
     expect(first.results.find(r => r.source === 'api.binance.com')?.code).toBe('HTTP_451');
     expect(first.results.find(r => r.source === 'api.kraken.com')?.code).toBe('ENOTFOUND');
     expect(JSON.stringify(first)).not.toContain('private');
-    clock += 59000; expect((await check()).checkedAt).toBe(first.checkedAt); expect(fetcher).toHaveBeenCalledTimes(6);
-    clock += 2000; expect((await check()).checkedAt).toBe(clock); expect(fetcher).toHaveBeenCalledTimes(12);
+    clock += 59000; expect((await check()).checkedAt).toBe(first.checkedAt); expect(fetcher).toHaveBeenCalledTimes(14);
+    clock += 2000; expect((await check()).checkedAt).toBe(clock); expect(fetcher).toHaveBeenCalledTimes(28);
   });
   it('does not put a working provider into cooldown after an application request budget expires', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});

@@ -12,6 +12,7 @@ import { useAuth, type SessionUser } from '@/hooks/useAuth';
 import { useDayTrading } from '@/hooks/useDayTrading';
 import { DayTrading } from '@/sections/DayTrading';
 import type { IntradayInterval } from '@/lib/intraday';
+import { OpportunityDetail } from '@/sections/OpportunityDetail';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 import type { Asset, AssetAnalysis } from '@/types';
@@ -25,9 +26,10 @@ export default function Terminal({ user }: { user: SessionUser }) {
   const [selected, setSelected] = useState<AssetAnalysis | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [detailInterval, setDetailInterval] = useState<IntradayInterval>('5m');
+  const [opportunity,setOpportunity]=useState<{asset:Asset;interval:IntradayInterval;daily:AssetAnalysis['candles']}|null>(null);
   const monitor = useDayTrading(analyses, portfolio, alerts);
   const openAnalysis = (analysis: AssetAnalysis, interval: IntradayInterval = '5m') => {
-    setDetailInterval(interval); setSelected(analysis);
+    setOpportunity(null);setDetailInterval(interval); setSelected(analysis);
   };
   const selectedAnalysis = selected
     ? analyses.find(a => a.asset.id === selected.asset.id && a.asset.assetClass === selected.asset.assetClass) ?? selected
@@ -140,7 +142,11 @@ export default function Terminal({ user }: { user: SessionUser }) {
             />
           </TabsContent>
           <TabsContent value="daytrading">
-            <DayTrading monitor={monitor} analyses={analyses} onSelect={openAnalysis} />
+            <DayTrading monitor={monitor} onSelect={(asset,interval)=>{
+              const known=analyses.find(a=>a.asset.id===asset.id&&a.asset.assetClass===asset.assetClass);
+              if(known)openAnalysis(known,interval);
+              else {setSelected(null);setOpportunity({asset,interval,daily:monitor.dailyFor(asset)});}
+            }} />
           </TabsContent>
           <TabsContent value="research">
             <Research />
@@ -173,7 +179,8 @@ export default function Terminal({ user }: { user: SessionUser }) {
         onRemoveAlert={removeAlert}
         onTogglePortfolio={handleTogglePortfolio}
       />
-      <Toaster position="bottom-right" theme="dark" />
+      {opportunity&&<OpportunityDetail key={`${opportunity.asset.assetClass}:${opportunity.asset.id}`} asset={opportunity.asset} daily={opportunity.daily} initialInterval={opportunity.interval} position={portfolio.find(p=>p.assetId===opportunity.asset.id&&p.assetClass===opportunity.asset.assetClass)} alerts={alerts} onClose={()=>setOpportunity(null)} onRegister={asset=>{void addPosition({assetId:asset.id,symbol:asset.symbol,assetClass:asset.assetClass,lots:[]});}}/>}
+      <Toaster position="bottom-right" theme="dark" visibleToasts={3} />
     </div>
   );
 }

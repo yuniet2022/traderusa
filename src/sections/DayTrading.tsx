@@ -1,18 +1,18 @@
 import { useState } from "react";
-import type { AssetAnalysis } from "@/types";
+import type { Asset } from "@/types";
 import type { useDayTrading } from "@/hooks/useDayTrading";
 import { assetKey, type IntradayInterval } from "@/lib/intraday";
 import { ensureNotifyPermission } from "@/lib/alerts";
 import { fmtPrice } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { RobinhoodBadge } from "@/components/RobinhoodBadge";
 
 interface Props {
   monitor: ReturnType<typeof useDayTrading>;
-  analyses: AssetAnalysis[];
-  onSelect: (analysis: AssetAnalysis, interval: IntradayInterval) => void;
+  onSelect: (asset: Asset, interval: IntradayInterval) => void;
 }
-export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
+export function DayTrading({ monitor: m, onSelect }: Props) {
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
@@ -33,9 +33,16 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
         a.reading.asset.symbol.localeCompare(b.reading.asset.symbol)
     );
   const open = (key: string, interval = m.interval) => {
-    const a = analyses.find(a => assetKey(a.asset) === key);
+    const a = m.assets.find(a => assetKey(a) === key);
     if (a) onSelect(a, interval);
   };
+  const matches = query.trim()
+    ? m.assets.filter(a =>
+        `${a.symbol} ${a.name}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase())
+      )
+    : [];
   return (
     <section aria-label="Monitor de day trading" className="min-w-0 space-y-4">
       <div className="rounded-xl border border-indigo-800/60 bg-indigo-950/20 p-4 space-y-3">
@@ -43,14 +50,16 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
           Day trading · Compras y salidas intradía
         </h2>
         <p className="text-sm text-zinc-300">
-          Busca setups con cierres y volumen en los {analyses.length} activos
-          cargados, incluidos los que no tienen sesgo alcista diario. Las ventas
+          Busca compras en el catálogo ampliado de acciones y ETF de EE. UU. y
+          criptomonedas, sin limitarse a tu lista ni al sesgo diario. Las ventas
           se revisan solo sobre tus compras registradas.
         </p>
         <p className="text-xs text-zinc-400">
           No hay un cupo de 3 o 4 compras. El número depende de las condiciones
-          y de los datos disponibles; más avisos no implica más ganancias.
-          Puedes añadir activos con el buscador.
+          y de los datos disponibles; más avisos no implica más ganancias. El
+          barrido es progresivo: miles de activos no se confirman
+          simultáneamente. Cada entrada necesita datos actuales. Los avisos
+          masivos se agrupan; agruparlos no limita cuántos activos se analizan.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-xs">
@@ -70,7 +79,6 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
             size="sm"
             className="min-h-11"
             onClick={m.enabled ? m.stop : m.start}
-            disabled={!analyses.length}
           >
             {m.enabled ? "Pausar vigilancia" : "Iniciar vigilancia intradía"}
           </Button>
@@ -114,7 +122,7 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
           {!m.enabled
             ? "Vigilancia pausada. Iníciala para recibir avisos."
             : m.scanning
-              ? `Revisando ${m.progress}/${analyses.length} activos…`
+              ? `Ronda en curso: ${m.progress} activos comprobados · barrido progresivo`
               : "Vigilancia activa · nuevas rondas cada 20 segundos."}
         </p>
         <p className="text-[11px] text-zinc-400">
@@ -124,6 +132,81 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
           compras ni ventas.
         </p>
       </div>
+      <section
+        aria-label="Cobertura del mercado"
+        className="rounded-xl border border-zinc-800 p-4 space-y-2"
+      >
+        <h3 className="text-sm font-semibold">
+          Cobertura de compras del mercado
+        </h3>
+        <p className="text-[11px] text-zinc-400">
+          La etiqueta «En Robinhood» aparece solo cuando se verifica su catálogo
+          público. La ausencia de etiqueta no confirma que el activo esté
+          excluido; puede faltar verificación. Depende también de tu cuenta y
+          región.
+        </p>
+        <p className="text-xs text-zinc-300">
+          {m.universe.loading
+            ? `Cargando catálogo: ${m.universe.received} activos recibidos…`
+            : `${m.assets.length} activos conocidos · ${m.universe.assets.length} descubiertos por las fuentes.`}
+        </p>
+        {m.enabled && (m.universe.error || m.universe.coverage?.partial) && (
+          <p className="text-xs text-amber-300">
+            {m.universe.error ??
+              "Cobertura parcial: alguna fuente no está disponible o entrega un catálogo anterior. No equivale a todo el mercado mundial."}
+          </p>
+        )}
+        {m.universe.coverage?.sources.map(s => (
+          <p key={s.id} className="text-[11px] text-zinc-400">
+            {s.name}:{" "}
+            {s.status === "ok"
+              ? "disponible"
+              : s.status === "stale"
+                ? "catálogo anterior"
+                : "no disponible"}{" "}
+            · {s.count} activos ·{" "}
+            {s.fetchedAt
+              ? new Date(s.fetchedAt).toLocaleString("es")
+              : "sin consulta válida"}
+            {s.error ? ` · ${s.error}` : ""}
+          </p>
+        ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          {[
+            ["Revisados en esta vigilancia", m.coverage.attempted],
+            ["Con historial suficiente", m.coverage.analysed],
+            ["Con fallo o sin historial", m.coverage.failed],
+            [
+              "Pendientes de revisión",
+              Math.max(0, m.assets.length - m.coverage.attempted),
+            ],
+          ].map(([label, value]) => (
+            <p key={label} className="rounded border border-zinc-800 p-2">
+              <span className="block text-zinc-400">{label}</span>
+              <strong>{value}</strong>
+            </p>
+          ))}
+        </div>
+        {m.closedStocks > 0 && (
+          <p className="text-xs text-zinc-400">
+            {m.closedStocks} acciones/ETF esperan la sesión regular. Cripto
+            sigue abierta 24/7.
+          </p>
+        )}
+        {m.coverage.dailyMissing > 0 && (
+          <p className="text-xs text-amber-300">
+            {m.coverage.dailyMissing} activos sin contexto diario: sus patrones
+            diarios no se confirman.
+          </p>
+        )}
+        <button
+          className="min-h-10 text-xs text-indigo-300 underline"
+          disabled={!m.enabled || m.universe.loading}
+          onClick={m.universe.refresh}
+        >
+          Actualizar catálogos de mercado
+        </button>
+      </section>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
           ["Posibles compras", live.filter(a => a.kind === "buy").length],
@@ -132,7 +215,7 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
             live.filter(a => a.kind === "sell").length,
           ],
           ["Con datos vigentes", live.filter(a => a.reading.dataReady).length],
-          ["Activos cargados", analyses.length],
+          ["Activos en el universo", m.assets.length],
         ].map(([label, value]) => (
           <div
             key={label}
@@ -147,6 +230,11 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
       </div>
       {m.enabled && (
         <>
+          <p className="text-[11px] text-zinc-400">
+            Se muestran hasta 120 resultados recientes; este límite de pantalla
+            no limita el universo del barrido. Los avisos se evalúan para cada
+            activo revisado, aunque su ficha deje de estar en esta lista.
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
             <label className="col-span-2 sm:col-span-1 min-w-0">
               Buscar activo
@@ -186,6 +274,30 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
               </select>
             </label>
           </div>
+          {matches.length > 0 && (
+            <div
+              className="rounded-lg border border-zinc-800 p-3 space-y-2"
+              aria-label="Buscar en el catálogo completo"
+              role="region"
+            >
+              <p className="text-xs text-zinc-400">
+                {matches.length} coincidencias en el catálogo · primeras 20.
+                Selecciona una para consultar su gráfico y darle prioridad.
+              </p>
+              {matches.slice(0, 20).map(a => (
+                <button
+                  key={assetKey(a)}
+                  className="block min-h-10 w-full text-left text-xs text-indigo-200"
+                  onClick={() => {
+                    m.inspect(a);
+                    onSelect(a, m.interval);
+                  }}
+                >
+                  {a.symbol} · {a.name}
+                </button>
+              ))}
+            </div>
+          )}
           <div
             className="grid gap-3 lg:grid-cols-2"
             aria-label="Resultados de day trading"
@@ -199,6 +311,7 @@ export function DayTrading({ monitor: m, analyses, onSelect }: Props) {
                 <div className="flex flex-wrap justify-between gap-2">
                   <h3 className="font-semibold">
                     {a.reading.asset.symbol}{" "}
+                    <RobinhoodBadge key={a.key} asset={a.reading.asset} />{" "}
                     <span className="text-xs font-normal text-zinc-400">
                       {a.reading.asset.assetClass === "stock"
                         ? "Acción"

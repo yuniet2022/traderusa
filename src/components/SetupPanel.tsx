@@ -25,7 +25,7 @@ const labels: Record<EntryStatus, string> = {
   invalidated: "Setup invalidado",
 };
 interface Props {
-  analysis: AssetAnalysis;
+  analysis: Pick<AssetAnalysis,'asset'|'candles'>;
   position?: Position;
   alerts: AlertRule[];
   onUsePlan: (plan: EntryPlan) => void;

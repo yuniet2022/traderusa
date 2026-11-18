@@ -11,7 +11,8 @@ import type { PlanRiskEvaluation } from '@/lib/tradeDecision';
 const dollars = (value: number) => value.toLocaleString('es', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
 export interface RiskCalculatorHandle { applyPlan: (plan: EntryPlan) => void }
-export function RiskCalculator({ analysis, reading, controllerRef, position, onValidation }: { analysis: AssetAnalysis; reading?: EntryReading | null; controllerRef?: Ref<RiskCalculatorHandle>; position?: Position; onValidation?: (evaluation: PlanRiskEvaluation) => void }) {
+type RiskContext = Pick<AssetAnalysis,'asset'|'price'> & {levels:Pick<AssetAnalysis['levels'],'entry'>;indicators:Pick<AssetAnalysis['indicators'],'atr14'>};
+export function RiskCalculator({ analysis, reading, controllerRef, position, onValidation }: { analysis: RiskContext; reading?: EntryReading | null; controllerRef?: Ref<RiskCalculatorHandle>; position?: Position; onValidation?: (evaluation: PlanRiskEvaluation) => void }) {
   const id = useId();
   const [capital, setCapital] = useState('');
   const [risk, setRisk] = useState('1');

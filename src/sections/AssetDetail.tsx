@@ -20,6 +20,7 @@ import type { IntradayInterval } from '@/lib/intraday';
 import type { Timeframe } from '@/lib/data';
 import { TradeDecision } from '@/components/TradeDecision';
 import type { PlanRiskEvaluation } from '@/lib/tradeDecision';
+import { RobinhoodBadge } from '@/components/RobinhoodBadge';
 
 interface Props {
   analysis: AssetAnalysis | null;
@@ -70,6 +71,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             <DialogHeader className="pr-8 text-left">
               <DialogTitle className="flex items-center gap-3 flex-wrap">
                 <span className="text-xl">{a.asset.symbol}</span>
+                <RobinhoodBadge key={`${a.asset.assetClass}:${a.asset.id}`} asset={a.asset}/>
                 <span className="text-sm text-zinc-400 font-normal">{a.asset.name}</span>
               </DialogTitle>
               <DialogDescription className="sr-only">Gráfico, lectura del mercado, plan e indicadores de {a.asset.name}.</DialogDescription>

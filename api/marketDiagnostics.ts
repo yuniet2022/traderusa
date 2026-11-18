@@ -1,4 +1,5 @@
 import { networkErrorCode } from './networkError';
+import { CATALOGS } from './marketUniverse';
 
 const destinations = [
   ['query1.finance.yahoo.com', 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d&interval=5m'],
@@ -7,6 +8,9 @@ const destinations = [
   ['api.exchange.coinbase.com', 'https://api.exchange.coinbase.com/time'],
   ['stooq.com', 'https://stooq.com/q/l/?s=aapl.us&i=d'],
   ['api.binance.com', 'https://api.binance.com/api/v3/time'],
+  ...CATALOGS.map(c=>[c.name,c.url] as const),
+  ['Robinhood · acciones', 'https://api.robinhood.com/instruments/?symbol=AAPL'],
+  ['Robinhood · cripto', 'https://nummus.robinhood.com/currency_pairs/'],
 ] as const;
 
 export function createMarketDiagnostics(options: { fetch?: typeof fetch; now?: () => number } = {}) {
