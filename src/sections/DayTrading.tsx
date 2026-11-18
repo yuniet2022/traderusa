@@ -132,6 +132,43 @@ export function DayTrading({ monitor: m, onSelect }: Props) {
           compras ni ventas.
         </p>
       </div>
+      {m.followed.length > 0 && (
+        <section
+          aria-label="Vigilancia prioritaria"
+          className="rounded-xl border border-indigo-900/60 p-3 space-y-2"
+        >
+          <h3 className="text-sm font-semibold">
+            Activos que sigues con prioridad ({m.followed.length}/10)
+          </h3>
+          <p className="text-[11px] text-zinc-400">
+            Prioridad dentro del barrido; no garantiza cotización continua ni
+            avisos con la app oculta. Las posiciones propias también reciben
+            prioridad.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {m.followed.map(a => (
+              <span
+                key={assetKey(a)}
+                className="inline-flex items-center gap-2 rounded border border-zinc-700 px-2 text-xs"
+              >
+                <button
+                  className="min-h-10 text-indigo-200"
+                  onClick={() => onSelect(a, m.interval)}
+                >
+                  {a.symbol}
+                </button>
+                <button
+                  className="min-h-10 px-1 text-zinc-400"
+                  aria-label={`Quitar prioridad de ${a.symbol}`}
+                  onClick={() => m.unfollow(a)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
       <section
         aria-label="Cobertura del mercado"
         className="rounded-xl border border-zinc-800 p-4 space-y-2"

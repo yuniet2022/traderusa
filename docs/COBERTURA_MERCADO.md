@@ -32,7 +32,7 @@ Miles de símbolos y los límites gratuitos pueden hacer que un recorrido tarde 
 
 Se conservan hasta 120 fichas y 50 avisos de sesión para acotar memoria. Cada resultado se evalúa para avisos **antes** de limitar las fichas. La búsqueda consulta todos los símbolos descubiertos y permite priorizar/abrir un activo que no esté entre los últimos resultados.
 
-Para evitar tapar el gráfico con decenas de avisos simultáneos, se muestran los tres primeros avisos de compra de cada ronda y se agrupan los adicionales en un contador/resumen. Las revisiones de venta propia conservan su aviso individual. El historial y los resultados siguen mostrando las detecciones dentro de sus límites indicados; agrupar avisos no modifica las reglas ni omite la evaluación de un activo.
+Para evitar tapar el gráfico con decenas de avisos simultáneos, se muestran los tres primeros avisos de compra de cada ronda y se agrupan los adicionales en un contador/resumen. Las revisiones de venta propia y los nuevos avisos del gráfico visible conservan su aviso individual. El historial y los resultados siguen mostrando las detecciones dentro de sus límites indicados; agrupar avisos no modifica las reglas ni omite la evaluación de un activo.
 
 La ficha nueva usa velas reales, detector, decisión y riesgo conectado. No fabrica 60 velas diarias para cumplir requisitos del escáner anterior. Si falta contexto diario, lo indica y no confirma patrones que dependan de sus niveles; puede evaluar estructura intradía suficiente. Al abrir se revalida el plan: un aviso anterior puede haber caducado. Abrir no añade posiciones ni operaciones. Registrar una posición es una acción explícita y exige completar sus lotes.
 

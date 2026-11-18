@@ -46,7 +46,7 @@ export function intradayAction(
       ...base,
       kind: "sell",
       title: "Revisar venta de tu posición",
-      detail: `${cause} Resultado latente bruto: ${exit.metrics.pnl!.toLocaleString("en-US", { style: "currency", currency: "USD" })}.`,
+      detail: `Velas de ${reading.intervalSeconds / 60} min. ${cause} Resultado latente bruto: ${exit.metrics.pnl!.toLocaleString("en-US", { style: "currency", currency: "USD" })}.`,
       notificationKey: `${key}:${reading.intervalSeconds}:sell:${trigger}:${lots}`,
     };
   }
@@ -61,7 +61,7 @@ export function intradayAction(
       ...base,
       kind: "buy",
       title: "Posible compra intradía",
-      detail: `${entryPatternNames[p.pattern]}. Entrada ${fmtPrice(p.entry)}, máximo ${fmtPrice(p.maxEntry)}, stop ${fmtPrice(p.stop)}, objetivo ${fmtPrice(p.target1)}. Revisa tamaño y costos.`,
+      detail: `Velas de ${reading.intervalSeconds / 60} min. ${entryPatternNames[p.pattern]}. Entrada ${fmtPrice(p.entry)}, máximo ${fmtPrice(p.maxEntry)}, stop ${fmtPrice(p.stop)}, objetivo ${fmtPrice(p.target1)}. Revisa tamaño y costos.`,
       notificationKey: `${key}:${reading.intervalSeconds}:buy:${p.triggerAt}`,
     };
   }

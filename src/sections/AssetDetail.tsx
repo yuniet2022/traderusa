@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { AssetAnalysis } from '@/types';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SignalBadge, ScoreBar } from '@/components/SignalBadge';
@@ -33,6 +33,8 @@ interface Props {
   onRemoveAlert: (id: string) => void;
   initialTimeframe?: IntradayInterval;
   onWatchIntraday?: (interval: IntradayInterval) => void;
+  onObserveReading?: (reading: EntryReading) => void;
+  watchActive?: boolean;
 }
 
 const fmt = (v: number) => v >= 1000 ? v.toLocaleString('es', { maximumFractionDigits: 0 })
@@ -50,7 +52,7 @@ function IndicatorRow({ label, value, hint }: { label: string; value: string; hi
   );
 }
 
-export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfolio, position, alerts, onAddAlert, onRemoveAlert, initialTimeframe = '5m', onWatchIntraday }: Props) {
+export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfolio, position, alerts, onAddAlert, onRemoveAlert, initialTimeframe = '5m', onWatchIntraday, onObserveReading, watchActive }: Props) {
   const [chartMode, setChartMode] = useState<'line' | 'candles'>('candles');
   const [chartTimeframe, setChartTimeframe] = useState<Timeframe>(initialTimeframe);
   const [detectorTimeframe, setDetectorTimeframe] = useState<IntradayInterval>(initialTimeframe);
@@ -58,6 +60,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
   const [entryReading, setEntryReading] = useState<EntryReading | null>(null);
   const [riskValidation, setRiskValidation] = useState<PlanRiskEvaluation | null>(null);
   const riskRef = useRef<RiskCalculatorHandle>(null);
+  const handleReading=useCallback((reading:EntryReading)=>{setEntryReading(reading);onObserveReading?.(reading);},[onObserveReading]);
   const preparePlan = (plan: NonNullable<EntryReading['plan']>) => {
     riskRef.current?.applyPlan(plan);
     document.querySelector('[data-testid="risk-calculator"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -144,7 +147,7 @@ export function AssetDetail({ analysis: a, onClose, inPortfolio, onTogglePortfol
             </div>
 
             <div className="min-w-0 space-y-4">
-            <SetupPanel key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} position={position} alerts={alerts} onReading={setEntryReading} timeframe={detectorTimeframe} onTimeframeChange={value => {
+            <SetupPanel key={`${a.asset.assetClass}:${a.asset.id}`} analysis={a} position={position} alerts={alerts} onReading={handleReading} watchActive={watchActive} timeframe={detectorTimeframe} onTimeframeChange={value => {
               setDetectorTimeframe(value); setChartTimeframe(value); setChartMode('candles');
             }} onWatch={onWatchIntraday ? () => onWatchIntraday(detectorTimeframe) : undefined} onUsePlan={preparePlan} />
             </div>

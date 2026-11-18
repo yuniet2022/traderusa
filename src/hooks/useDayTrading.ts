@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Asset, AssetAnalysis, Candle, CandleHistory } from "@/types";
 import type { Position } from "@/lib/portfolio";
 import type { AlertRule } from "@/lib/alerts";
 import { fireNotification } from "@/lib/alerts";
 import { loadTimeframeHistory } from "@/lib/data";
-import { detectEntrySetups } from "@/lib/entrySetups";
+import { detectEntrySetups, type EntryReading } from "@/lib/entrySetups";
 import { marketSession } from "@/lib/marketSession";
 import {
   assetKey,
@@ -56,6 +56,11 @@ export function useDayTrading(
     [progress, setProgress] = useState(0);
   const [notices, setNotices] = useState<IntradayNotice[]>([]),
     [refreshKey, setRefreshKey] = useState(0);
+  const [followed, setFollowed] = useState<Asset[]>([]);
+  const observer = useRef<((reading: EntryReading) => void) | null>(null);
+  const observe = useCallback((reading: EntryReading) => {
+    observer.current?.(reading);
+  }, []);
   const [coverage, setCoverage] = useState({
     attempted: 0,
     analysed: 0,
@@ -114,7 +119,7 @@ export function useDayTrading(
     const canScan = () =>
       alive && document.visibilityState !== "hidden" && navigator.onLine;
     const cancel = () => controller?.abort();
-    const notify = (actions: IntradayAction[]) => {
+    const notify = (actions: IntradayAction[], focused = false) => {
       if (!canScan()) return;
       const next = ledger.current.collect(actions);
       if (!next.length) return;
@@ -122,7 +127,7 @@ export function useDayTrading(
       for (const action of next) {
         const title = `${action.reading.asset.symbol} · ${action.title}`;
         if (action.kind === "buy") buyNoticeCount++;
-        if (action.kind === "sell" || buyNoticeCount <= 3) {
+        if (focused || action.kind === "sell" || buyNoticeCount <= 3) {
           toast(title, {
             id: `intraday:${action.key}`,
             description: action.detail,
@@ -354,6 +359,23 @@ export function useDayTrading(
       if (!canScan()) cancel();
       else void run();
     };
+    const observeVisible = (reading: EntryReading) => {
+      const at = Date.now();
+      if (
+        !reading.dataReady ||
+        !reading.fetchedAt ||
+        at - reading.fetchedAt > 30000 ||
+        reading.fetchedAt > at + 5000
+      )
+        return;
+      const position = context.current.positions.find(
+        p =>
+          p.assetId === reading.asset.id &&
+          p.assetClass === reading.asset.assetClass
+      );
+      notify([intradayAction(reading, position, context.current.alerts)], true);
+    };
+    observer.current = observeVisible;
     void run();
     const timer = window.setInterval(() => {
       void run();
@@ -362,6 +384,7 @@ export function useDayTrading(
     window.addEventListener("offline", cancel);
     window.addEventListener("online", visibility);
     return () => {
+      if (observer.current === observeVisible) observer.current = null;
       alive = false;
       cancel();
       clearInterval(timer);
@@ -412,6 +435,8 @@ export function useDayTrading(
     assets,
     coverage,
     closedStocks,
+    followed,
+    observe,
     start: () => setEnabled(true),
     stop: () => {
       setEnabled(false);
@@ -426,9 +451,16 @@ export function useDayTrading(
     },
     refresh: () => setRefreshKey(k => k + 1),
     inspect: (asset: Asset) => {
+      pins.current.delete(assetKey(asset));
       pins.current.set(assetKey(asset), asset);
       if (pins.current.size > 10)
         pins.current.delete(pins.current.keys().next().value!);
+      setFollowed([...pins.current.values()]);
+      setRefreshKey(k => k + 1);
+    },
+    unfollow: (asset: Asset) => {
+      pins.current.delete(assetKey(asset));
+      setFollowed([...pins.current.values()]);
       setRefreshKey(k => k + 1);
     },
     dailyFor: (asset: Asset) =>

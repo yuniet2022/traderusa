@@ -6,13 +6,14 @@ import { marketDayKey, marketSession } from "./marketSession";
 export type EntryStatus =
   "ready" | "waiting" | "blocked" | "expired" | "invalidated";
 export type EntryPattern =
-  "orb" | "previous_high" | "retest" | "pullback" | "reclaim";
+  "orb" | "previous_high" | "retest" | "pullback" | "reclaim" | "rebound";
 export const entryPatternNames: Record<EntryPattern, string> = {
   orb: "Ruptura del rango inicial",
   previous_high: "Ruptura del máximo anterior",
   retest: "Ruptura y retest",
   pullback: "Retroceso y reanudación",
   reclaim: "Barrida y recuperación de soporte",
+  rebound: "Rebote confirmado tras caída",
 };
 export interface EntryPlan {
   asset: Asset;
@@ -70,6 +71,52 @@ export function validCandles(input: Candle[]): Candle[] {
         .map(c => [c.time, c])
     ).values(),
   ].sort((a, b) => a.time - b.time);
+}
+
+/** Causal local reversal: no future pivot, no requirement for lagging bullish averages. */
+function reboundStructure(
+  rows: Candle[],
+  index: number,
+  volatility: number,
+  sessionOpen: number,
+  step: number
+) {
+  const window = rows
+    .slice(Math.max(0, index - 13), index + 1)
+    .filter(c => c.time * 1000 >= sessionOpen);
+  if (
+    window.length < 6 ||
+    window.some((c, i) => i > 0 && c.time - window[i - 1].time !== step)
+  )
+    return null;
+  const candidates = window.slice(Math.max(3, window.length - 7), -2);
+  if (!candidates.length) return null;
+  const low = Math.min(...candidates.map(c => c.low));
+  const pivot = window.findIndex(c => c.low === low);
+  if (pivot < 3 || pivot > window.length - 3) return null;
+  const before = window.slice(0, pivot + 1),
+    recovery = window.slice(pivot + 1);
+  const declining = before
+    .slice(1)
+    .filter((c, i) => c.close < before[i].close).length;
+  const ceiling = Math.max(...before.map(c => c.high));
+  const last = window.at(-1)!,
+    previous = window.at(-2)!,
+    level = recovery[0].high;
+  if (
+    declining < 3 ||
+    ceiling - low < volatility * 1.5 ||
+    last.close - low > volatility * 2
+  )
+    return null;
+  if (recovery.some((c, i) => c.low <= window[pivot + i].low)) return null;
+  if (
+    previous.close > level ||
+    last.close <= level ||
+    last.close <= previous.close
+  )
+    return null;
+  return { level, low, ceiling };
 }
 export function checkEntryPlan(
   plan: EntryPlan,
@@ -186,6 +233,10 @@ export function detectEntrySetups(
     reasons.push("La fuente solo entrega cierres diarios.");
   if (!lastClosedAt || now - lastClosedAt > intervalSeconds * 2000 + 30000)
     reasons.push("Faltan cierres recientes de esta sesión.");
+  if (lastClosedAt && history?.fetchedAt && history.fetchedAt < lastClosedAt)
+    reasons.push(
+      "Esperar una consulta posterior al cierre de la última vela; una instantánea anterior no confirma su volumen final."
+    );
   if (
     history?.priceAsOf &&
     lastClosedAt &&
@@ -345,6 +396,7 @@ export function detectEntrySetups(
       pattern: EntryPattern;
       level: number;
       structure: number;
+      ceiling?: number;
     }[] = [];
     if (
       range?.complete &&
@@ -427,11 +479,27 @@ export function detectEntrySetups(
       improving
     )
       matches.push({ pattern: "reclaim", level: support, structure: c.low });
+    const rebound = reboundStructure(
+      closed,
+      i,
+      atrValue,
+      session.open,
+      intervalSeconds
+    );
+    if (rebound)
+      matches.push({
+        pattern: "rebound",
+        level: rebound.level,
+        structure: rebound.low,
+        ceiling: rebound.ceiling,
+      });
     for (const match of matches) {
       const stop =
         Math.min(match.structure, c.close - atrValue * 0.5) - atrValue * 0.1;
       const risk = c.close - stop;
       if (!(stop > 0) || risk / c.close < 0.0005 || !Number.isFinite(risk))
+        continue;
+      if (match.ceiling !== undefined && c.close + 2 * risk > match.ceiling)
         continue;
       const triggerAt = (c.time + intervalSeconds) * 1000;
       const maxEntry = Math.min(

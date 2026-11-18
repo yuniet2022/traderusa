@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Asset, Candle } from "@/types";
 import type { Position } from "@/lib/portfolio";
 import type { AlertRule } from "@/lib/alerts";
@@ -34,6 +34,9 @@ interface Props {
   alerts: AlertRule[];
   onClose: () => void;
   onRegister: (asset: Asset) => void;
+  onObserveReading?: (reading: EntryReading) => void;
+  onWatch?: (interval: IntradayInterval) => void;
+  watchActive?: boolean;
 }
 /** Discovered assets do not need a fictitious 60-day scanner analysis to open a real intraday plan. */
 export function OpportunityDetail({
@@ -44,6 +47,9 @@ export function OpportunityDetail({
   alerts,
   onClose,
   onRegister,
+  onObserveReading,
+  onWatch,
+  watchActive,
 }: Props) {
   const [interval, setInterval] = useState(initialInterval),
     [chart, setChart] = useState<Timeframe>(initialInterval);
@@ -53,6 +59,13 @@ export function OpportunityDetail({
   const dailyContext =
     dailyHistory && !dailyHistory.stale ? dailyHistory.candles : daily;
   const ref = useRef<RiskCalculatorHandle>(null);
+  const handleReading = useCallback(
+    (value: EntryReading) => {
+      setReading(value);
+      onObserveReading?.(value);
+    },
+    [onObserveReading]
+  );
   const price = reading?.observedPrice ?? null;
   const metrics = position ? positionMetrics(position, price) : null;
   const prepare = (plan: EntryPlan) => {
@@ -162,7 +175,9 @@ export function OpportunityDetail({
               analysis={{ asset, candles: dailyContext }}
               position={position}
               alerts={alerts}
-              onReading={setReading}
+              onReading={handleReading}
+              onWatch={onWatch ? () => onWatch(interval) : undefined}
+              watchActive={watchActive}
               timeframe={interval}
               onTimeframeChange={value => {
                 setInterval(value);

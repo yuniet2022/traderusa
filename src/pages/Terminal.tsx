@@ -170,7 +170,9 @@ export default function Terminal({ user }: { user: SessionUser }) {
         key={`${selected?.asset.assetClass}:${selected?.asset.id}:${detailInterval}`}
         analysis={selectedAnalysis}
         initialTimeframe={detailInterval}
-        onWatchIntraday={interval => { monitor.setInterval(interval); monitor.start(); setSelected(null); setActiveTab('daytrading'); }}
+        onWatchIntraday={interval => { if(selectedAnalysis)monitor.inspect(selectedAnalysis.asset);monitor.setInterval(interval); monitor.start(); toast(`${selectedAnalysis?.asset.symbol??'Activo'} en vigilancia prioritaria`,{description:'Los avisos requieren TraderUSA abierto y visible.'}); }}
+        onObserveReading={monitor.observe}
+        watchActive={monitor.enabled}
         onClose={() => setSelected(null)}
         inPortfolio={selected ? portfolio.some(p => p.assetId === selected.asset.id && p.assetClass === selected.asset.assetClass) : false}
         position={selected ? portfolio.find(p => p.assetId === selected.asset.id && p.assetClass === selected.asset.assetClass) : undefined}
@@ -179,7 +181,7 @@ export default function Terminal({ user }: { user: SessionUser }) {
         onRemoveAlert={removeAlert}
         onTogglePortfolio={handleTogglePortfolio}
       />
-      {opportunity&&<OpportunityDetail key={`${opportunity.asset.assetClass}:${opportunity.asset.id}`} asset={opportunity.asset} daily={opportunity.daily} initialInterval={opportunity.interval} position={portfolio.find(p=>p.assetId===opportunity.asset.id&&p.assetClass===opportunity.asset.assetClass)} alerts={alerts} onClose={()=>setOpportunity(null)} onRegister={asset=>{void addPosition({assetId:asset.id,symbol:asset.symbol,assetClass:asset.assetClass,lots:[]});}}/>}
+      {opportunity&&<OpportunityDetail key={`${opportunity.asset.assetClass}:${opportunity.asset.id}`} asset={opportunity.asset} daily={opportunity.daily} initialInterval={opportunity.interval} position={portfolio.find(p=>p.assetId===opportunity.asset.id&&p.assetClass===opportunity.asset.assetClass)} alerts={alerts} onClose={()=>setOpportunity(null)} onObserveReading={monitor.observe} watchActive={monitor.enabled} onWatch={interval=>{monitor.inspect(opportunity.asset);monitor.setInterval(interval);monitor.start();toast(`${opportunity.asset.symbol} en vigilancia prioritaria`);}} onRegister={asset=>{void addPosition({assetId:asset.id,symbol:asset.symbol,assetClass:asset.assetClass,lots:[]});}}/>}
       <Toaster position="bottom-right" theme="dark" visibleToasts={3} />
     </div>
   );

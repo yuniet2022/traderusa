@@ -1,6 +1,6 @@
 {
   "inputSha256": "b326efd64aa807e93325cff52770976e0820610a9cb9442f17dcfc5cffc9ef9f",
-  "rule": "entry-setups-v2-recent-range-noise",
+  "rule": "entry-setups-v3-closed-rebound",
   "symbol": "TSLA",
   "completedSessions": 59,
   "skippedSessions": 1,

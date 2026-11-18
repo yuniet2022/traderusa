@@ -211,7 +211,7 @@ export function replaySetups(
       ? marketDayKey(time * 1000)
       : new Date(time * 1000).toISOString().slice(0, 10);
   return {
-    rule: "entry-setups-v2-recent-range-noise",
+    rule: "entry-setups-v3-closed-rebound",
     symbol: asset.symbol,
     completedSessions: complete.length,
     skippedSessions,

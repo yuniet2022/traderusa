@@ -25,7 +25,7 @@ const labels: Record<EntryStatus, string> = {
   invalidated: "Setup invalidado",
 };
 interface Props {
-  analysis: Pick<AssetAnalysis,'asset'|'candles'>;
+  analysis: Pick<AssetAnalysis, "asset" | "candles">;
   position?: Position;
   alerts: AlertRule[];
   onUsePlan: (plan: EntryPlan) => void;
@@ -33,6 +33,7 @@ interface Props {
   timeframe?: IntradayInterval;
   onTimeframeChange?: (value: IntradayInterval) => void;
   onWatch?: () => void;
+  watchActive?: boolean;
 }
 export function SetupPanel({
   analysis: a,
@@ -43,6 +44,7 @@ export function SetupPanel({
   timeframe: controlledTimeframe,
   onTimeframeChange,
   onWatch,
+  watchActive,
 }: Props) {
   const [localTimeframe, setLocalTimeframe] = useState<IntradayInterval>("5m");
   const timeframe = controlledTimeframe ?? localTimeframe;
@@ -124,8 +126,17 @@ export function SetupPanel({
             onClick={onWatch}
             className="min-h-10 text-xs text-indigo-300 underline"
           >
-            Activar avisos de day trading
+            {watchActive
+              ? `Dar prioridad a ${a.asset.symbol}`
+              : `Activar avisos para ${a.asset.symbol}`}
           </button>
+        )}
+        {watchActive && (
+          <p className="text-[11px] text-zinc-400">
+            Los datos del gráfico abierto también alimentan los avisos, sin
+            esperar su turno en el barrido. Requiere la app y la pestaña
+            visibles.
+          </p>
         )}
       </div>
       <p
@@ -242,7 +253,7 @@ export function SetupPanel({
       )}
       <details className="text-xs">
         <summary className="min-h-9 cursor-pointer text-indigo-300">
-          Ver los cinco patrones y sus estados
+          Ver los seis patrones y sus estados
         </summary>
         <div className="space-y-2">
           {Object.entries(entryPatternNames).map(([id, name]) => {
